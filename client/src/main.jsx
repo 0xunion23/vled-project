@@ -31,12 +31,21 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(message.text);
+  const [escalated, setEscalated] = useState(false);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const isBot = !isUser;
+
+const confidence = message?.confidence ?? 1;
+const answerFound = message?.answerFound ?? false;
+
+const shouldEscalate =
+  isBot && (!answerFound || confidence < 0.6);
 
   return (
     <article className={`message ${isUser ? 'userMessage' : 'botMessage'}`}>
@@ -161,6 +170,28 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
           </div>
         )}
 
+{!isUser && shouldEscalate && (
+  <button
+    onClick={async () => {
+      await escalateQuestion(message.originalQuestion || message.text, confidence);
+      setEscalated(true);
+    }}
+    disabled={escalated}
+    style={{
+      marginTop: '10px',
+      padding: '6px 10px',
+      borderRadius: '6px',
+      border: 'none',
+      cursor: escalated ? 'default' : 'pointer',
+      fontSize: '12px',
+      background: escalated ? '#22c55e' : '#ef4444',
+      color: 'white'
+    }}
+  >
+    {escalated ? '✔ Escalated' : '🚨 Escalate'}
+  </button>
+)}
+
         {!isUser && message.sources?.length > 0 && (
           <div className="sources">
             {message.sources.map((source) => (
@@ -176,6 +207,20 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   );
 }
 
+async function escalateQuestion(question, confidence) {
+  try {
+    await fetch(`${API_URL}/api/escalations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question,
+        confidence
+      })
+    });
+  } catch (err) {
+    console.error('Escalation failed:', err);
+  }
+}
 function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -324,6 +369,7 @@ function App() {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          originalQuestion: current[current.length - 1]?.text,
           timestamp: getTime()
         }
       ]);
@@ -350,7 +396,15 @@ function App() {
     const text = input.trim();
     if (!text || isLoading) return;
 
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
+   const userMessage = {
+  id: crypto.randomUUID(),
+  role: 'user',
+  text,
+  originalQuestion: text,
+  timestamp: getTime()
+};
+
+setMessages((current) => [...current, userMessage]);
     setInput('');
     setIsLoading(true);
 
@@ -375,6 +429,7 @@ function App() {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          originalQuestion: text,
           timestamp: getTime()
         }
       ]);
@@ -448,7 +503,7 @@ function App() {
 
             <div className="statusPill">
               <Circle size={10} fill="currentColor" />
-              Escalation off
+              Escalation enabled
             </div>
           </div>
         </header>

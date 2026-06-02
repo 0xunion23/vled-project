@@ -4,6 +4,7 @@ import { env } from './config/env.js';
 import { connectMongo } from './db/mongoose.js';
 import { chatRouter } from './routes/chatRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
+import escalationRoutes from './routes/escalationRoutes.js';
 
 const app = express();
 
@@ -14,8 +15,13 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/', (_req, res) => {
+  res.send('🚀 RAG server is running');
+});
+
 app.use('/api/chat', chatRouter);
 app.use('/api/faqs', faqRouter);
+app.use('/api/escalations', escalationRoutes);
 
 app.use((error, _req, res, _next) => {
   console.error(error);
