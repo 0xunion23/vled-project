@@ -180,6 +180,7 @@ function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const [mostAskedQuestions, setMostAskedQuestions] = useState([]);
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -208,6 +209,26 @@ function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+  async function fetchMostAskedQuestions() {
+    try {
+      const response = await fetch(`${API_URL}/api/most-asked`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch questions');
+      }
+
+      const data = await response.json();
+
+      setMostAskedQuestions(data);
+    } catch (error) {
+      console.error('Failed to load most asked questions:', error);
+    }
+  }
+
+  fetchMostAskedQuestions();
+}, []);
+  
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
