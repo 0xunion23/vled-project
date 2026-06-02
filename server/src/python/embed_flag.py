@@ -1,3 +1,5 @@
+# this script is not used, replaced by embed_flag_worker.py for better performance and error handling(to improve latency). 
+# Keeping it here for reference and potential future use.
 import json
 import os
 import sys

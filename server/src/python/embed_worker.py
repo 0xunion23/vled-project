@@ -58,6 +58,8 @@ def main():
         if not line:
             continue
 
+        request_id = None
+
         try:
             payload = json.loads(line)
             request_id = payload.get("id")
@@ -71,7 +73,7 @@ def main():
         except Exception as error:
             write_response(
                 {
-                    "id": payload.get("id") if "payload" in locals() else None,
+                    "id": request_id,
                     "error": str(error),
                 }
             )
