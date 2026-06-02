@@ -127,7 +127,6 @@ export async function answerQuestion(query) {
       sources: []
     };
   }
-
   if (!answerFound) {
     return {
       answer: "I don't have enough information in the FAQ knowledge base to answer that.",

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # FAQ VLED RAG Chatbot
 
 MERN-based RAG chatbot matching the provided architecture, with escalation intentionally left out for now.
@@ -102,3 +103,6 @@ Response:
   ]
 }
 ```
+=======
+# vled-project
+>>>>>>> fa7e1c2bdb00bf778f96ed6c0674efec94bbd7d0
