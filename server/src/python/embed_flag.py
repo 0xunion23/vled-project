@@ -10,7 +10,7 @@ def main():
     texts = payload.get("texts", [])
     # Ensure all inputs are clean non-empty strings, encode/decode to strip bad chars
     texts = [str(t).encode("utf-8", errors="ignore").decode("utf-8").strip() for t in texts]
-    texts = [t for t in texts if len(t) >= 5]
+    texts = [t if len(t) >= 5 else "empty faq text" for t in texts]
 
     if not texts:
         print(json.dumps({"embeddings": []}))

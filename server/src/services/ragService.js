@@ -6,6 +6,10 @@ import { generateWithOllama } from './ollamaService.js';
 let cachedKnowledgeBase = null;
 
 function dotProduct(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return 0;
+  }
+
   const length = Math.min(left.length, right.length);
   let score = 0;
 
@@ -71,6 +75,10 @@ export async function reindexFaqs() {
 
 export async function retrieveContext(query) {
   const [queryEmbedding] = await embedTexts([query]);
+  if (!Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
+    return [];
+  }
+
   const knowledgeBase = await getKnowledgeBase();
 
   const ranked = knowledgeBase
