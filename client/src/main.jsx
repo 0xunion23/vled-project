@@ -530,6 +530,32 @@ function App() {
           <ArrowDown size={22} />
         </button>
 
+        {mostAskedQuestions.length > 0 && (
+  <div className="quickPrompts" aria-label="Most Asked Questions">
+    <h3
+      style={{
+        width: '100%',
+        margin: '0 0 10px 0',
+        color: '#64748b',
+        fontSize: '14px',
+        fontWeight: '700'
+      }}
+    >
+      Most Asked Questions (Top 20)
+    </h3>
+
+    {mostAskedQuestions.map((question) => (
+      <button
+        key={question._id || question.normalizedQuestion}
+        type="button"
+        onClick={() => useQuickPrompt(question.displayQuestion)}
+      >
+        {question.displayQuestion} ({question.count})
+      </button>
+    ))}
+  </div>
+)}
+
         <div className="quickPrompts" aria-label="Suggested questions">
           {QUICK_PROMPTS.map((prompt) => (
             <button key={prompt} type="button" onClick={() => useQuickPrompt(prompt)}>
