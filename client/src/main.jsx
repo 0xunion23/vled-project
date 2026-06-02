@@ -1,5 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ResponsiveContainer
+} from 'recharts';
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound, 
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown 
@@ -184,6 +193,7 @@ function App() {
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [analyticsData, setAnalyticsData] = useState([]);
 
   const [messages, setMessages] = useState([
     {
@@ -232,6 +242,12 @@ function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+  useEffect(() => {
+  fetch('http://localhost:5000/api/analytics/daily-searches')
+    .then((res) => res.json())
+    .then((data) => setAnalyticsData(data))
+    .catch((err) => console.error(err));
+}, []);
 
   function handleScroll(e) {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
@@ -579,8 +595,34 @@ function App() {
           </div>
           <p>Press Enter to send · Shift+Enter for new line</p>
         </form>
-      </section>
-    </main>
+
+<div style={{ marginTop: '30px', padding: '20px' }}>
+  <h2>📈 Daily Search Analytics</h2>
+
+  <ResponsiveContainer width="100%" height={300}>
+    <LineChart data={analyticsData}>
+      <CartesianGrid strokeDasharray="3 3" />
+      <XAxis dataKey="_id.date" />
+      <YAxis />
+      <Tooltip />
+      <Line
+        type="monotone"
+        dataKey="count"
+        stroke="#2563eb"
+        strokeWidth={3}
+      />
+    </LineChart>
+  </ResponsiveContainer>
+
+  <p style={{ marginTop: '10px' }}>
+    Total Searches:
+    {' '}
+    {analyticsData.reduce((sum, item) => sum + item.count, 0)}
+  </p>
+</div>
+
+</section>
+</main>
   );
 }
 
