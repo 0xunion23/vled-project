@@ -185,7 +185,7 @@ If the context does not contain the answer, say:
 
 | Variable | Default |
 |----------|---------|
-| `OLLAMA_MODEL` | `gemma3:1b` |
+| `OLLAMA_MODEL` | `gemma3:4b` |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` |
 | Temperature | `0.1` (deterministic) |
 | Context window | `4096` tokens |
@@ -203,7 +203,7 @@ CLIENT_ORIGIN=http://localhost:5173
 MIN_CONFIDENCE=0.45
 TOP_K=4
 OLLAMA_BASE_URL=http://127.0.0.1:11434
-OLLAMA_MODEL=gemma3:1b
+OLLAMA_MODEL=gemma3:4b
 FLAG_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
 PYTHON_BIN=python
 ```
@@ -267,7 +267,7 @@ Adds a new FAQ and auto-embeds it.
 | Local only | MongoDB, Ollama, and the embedding model all run on the developer's machine. Not accessible to external users. |
 | No escalation | Low-confidence queries return a fallback message. No handoff to a human agent is implemented. |
 | Static knowledge base | FAQs are not auto-updated. If Samagama content changes, `npm run import:samagama` must be re-run manually. |
-| Memory constraint | `gemma3:1b` requires ~1GB RAM. Larger models need more memory. |
+| Memory constraint | `gemma3:4b` requires ~4GB RAM. Larger models need more memory. |
 | No auth | The API has no authentication. Anyone with network access to port 5001 can query it. |
 
 ---
