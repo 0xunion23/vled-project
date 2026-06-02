@@ -17,6 +17,8 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/chat', chatRouter);
 app.use('/api/faqs', faqRouter);
+app.use('/api/most-asked', mostAskedRouter);
+
 
 app.use((error, _req, res, _next) => {
   console.error(error);
