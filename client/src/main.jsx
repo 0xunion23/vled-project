@@ -531,7 +531,7 @@ function App() {
         </button>
 
         {mostAskedQuestions.length > 0 && (
-  <div className="quickPrompts" aria-label="Most Asked Questions">
+<div className="mostAskedSection" aria-label="Most Asked Questions">
     <h3
       style={{
         width: '100%',
