@@ -11,5 +11,6 @@ export const env = {
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
   ollamaModel: process.env.OLLAMA_MODEL || 'gemma3:4b',
   flagEmbeddingModel: process.env.FLAG_EMBEDDING_MODEL || 'BAAI/bge-small-en-v1.5',
-  pythonBin: process.env.PYTHON_BIN || 'python3'
+  pythonBin: process.env.PYTHON_BIN || 'python3',
+  embeddingTimeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS || 30000)
 };
