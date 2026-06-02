@@ -1,7 +1,7 @@
-import { env } from '../config/env.js';
-import { Faq } from '../models/Faq.js';
-import { buildFaqText, embedFaq, embedTexts } from './embeddingService.js';
-import { generateWithOllama } from './ollamaService.js';
+import { env } from "../config/env.js";
+import { Faq } from "../models/Faq.js";
+import { buildFaqText, embedFaq, embedTexts } from "./embeddingService.js";
+import { generateWithOllama, validateWithOllama } from "./ollamaService.js";
 
 let cachedKnowledgeBase = null;
 
@@ -40,10 +40,13 @@ async function getKnowledgeBase() {
     return cachedKnowledgeBase;
   }
 
-  const faqs = await Faq.find({ isActive: true, embedding: { $exists: true, $ne: [] } }).lean();
+  const faqs = await Faq.find({
+    isActive: true,
+    embedding: { $exists: true, $ne: [] },
+  }).lean();
   cachedKnowledgeBase = faqs.map((faq) => ({
     ...faq,
-    id: String(faq._id)
+    id: String(faq._id),
   }));
 
   return cachedKnowledgeBase;
@@ -85,7 +88,7 @@ export async function retrieveContext(query) {
     .filter((faq) => Array.isArray(faq.embedding) && faq.embedding.length > 0)
     .map((faq) => ({
       faq,
-      score: dotProduct(queryEmbedding, faq.embedding)
+      score: dotProduct(queryEmbedding, faq.embedding),
     }))
     .sort((left, right) => right.score - left.score);
 
@@ -97,7 +100,7 @@ function toSource(result) {
     id: result.faq.id,
     question: result.faq.question,
     category: result.faq.category,
-    score: Number(result.score.toFixed(4))
+    score: Number(result.score.toFixed(4)),
   };
 }
 
@@ -107,53 +110,64 @@ function toContext(result) {
     answer: result.faq.answer,
     category: result.faq.category,
     text: buildFaqText(result.faq),
-    score: result.score
+    score: result.score,
   };
 }
 
 export async function answerQuestion(query) {
-  const normalizedQuery = String(query || '').trim();
+  const normalizedQuery = String(query || "").trim();
 
   if (!normalizedQuery) {
     return {
-      answer: 'Please enter a question.',
+      answer: "Please enter a question.",
       answerFound: false,
       confidence: 0,
-      sources: []
+      sources: [],
     };
   }
 
   const results = await retrieveContext(normalizedQuery);
   const bestScore = results[0]?.score || 0;
   const answerFound = bestScore >= env.minConfidence;
-
+ console.log(bestScore);
   if (results.length === 0) {
     return {
-      answer: 'No indexed FAQ knowledge base has been loaded yet. Seed or add FAQs, then run reindexing.',
+      answer:
+        "No indexed FAQ knowledge base has been loaded yet. Seed or add FAQs, then run reindexing.",
       answerFound: false,
       confidence: 0,
-      sources: []
+      sources: [],
     };
   }
-  if (!answerFound) {
-    return {
-      answer: "I don't have enough information in the FAQ knowledge base to answer that.",
-      answerFound: false,
-      confidence: bestScore,
-      sources: results.map(toSource)
-    };
-  }
-
   const contexts = results.map(toContext);
+  if (!answerFound) {
+    const answer = await validateWithOllama({ query: normalizedQuery, contexts });
+    if (answer.toLowerCase() === "valid") {
+      return {
+        answer:
+          "I don't have enough information in the FAQ knowledge base to answer that.",
+        answerFound: false,
+        confidence: bestScore,
+        sources: results.map(toSource),
+      };
+    } else {
+      return {
+        answer,
+        answerFound: true,
+        confidence: bestScore,
+        sources: results.map(toSource),
+      };
+    }
+  }
   const answer = await generateWithOllama({
     query: normalizedQuery,
-    contexts
+    contexts,
   });
 
   return {
     answer,
     answerFound: true,
     confidence: bestScore,
-    sources: results.map(toSource)
+    sources: results.map(toSource),
   };
 }
