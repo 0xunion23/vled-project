@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { env } from './config/env.js';
 import { connectMongo } from './db/mongoose.js';
+import { adminRouter } from './routes/adminRoutes.js';
 import { chatRouter } from './routes/chatRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
 import { mostAskedRouter } from './routes/mostAskedRoutes.js';
@@ -18,7 +19,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/chat', chatRouter);
 app.use('/api/faqs', faqRouter);
 app.use('/api/most-asked', mostAskedRouter);
-
+app.use('/api/admin', adminRouter);
 
 app.use((error, _req, res, _next) => {
   console.error(error);

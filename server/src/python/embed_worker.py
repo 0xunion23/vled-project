@@ -25,20 +25,24 @@ def mean_pool(last_hidden_state, attention_mask):
 
 def embed(texts, tokenizer, model):
     cleaned = clean_texts(texts)
-    encoded = tokenizer(
-        cleaned,
-        padding=True,
-        truncation=True,
-        max_length=512,
-        return_tensors="pt",
-    )
+    all_embeddings = []
 
-    with torch.no_grad():
-        output = model(**encoded)
-        embeddings = mean_pool(output.last_hidden_state, encoded["attention_mask"])
-        embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+    # Process one at a time to avoid transformers 5.x fast tokenizer batch bug
+    for text in cleaned:
+        encoded = tokenizer(
+            text,
+            padding=True,
+            truncation=True,
+            max_length=512,
+            return_tensors="pt",
+        )
+        with torch.no_grad():
+            output = model(**encoded)
+            embedding = mean_pool(output.last_hidden_state, encoded["attention_mask"])
+            embedding = torch.nn.functional.normalize(embedding, p=2, dim=1)
+            all_embeddings.append(embedding[0].numpy().tolist())
 
-    return embeddings.numpy().tolist()
+    return all_embeddings
 
 
 def write_response(payload):
