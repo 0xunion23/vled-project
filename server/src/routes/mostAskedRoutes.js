@@ -1,9 +1,9 @@
 import express from 'express';
 import MostAskedQuestion from '../models/MostAskedQuestion.js';
 
-const router = express.Router();
+export const mostAskedRouter = express.Router();
 
-router.get('/', async (req, res) => {
+mostAskedRouter.get('/', async (req, res) => {
   try {
     const questions = await MostAskedQuestion.find()
       .sort({ count: -1 })
@@ -18,5 +18,3 @@ router.get('/', async (req, res) => {
     });
   }
 });
-
-export default router;
