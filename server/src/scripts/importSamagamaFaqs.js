@@ -79,7 +79,7 @@ function parseFaqs(html) {
     const answer = stripTags(match[3]);
     const category = sectionForIndex(sections, match.index);
 
-    if (!question || !answer) continue;
+    if (!question || !answer || question.trim().length < 5 || answer.trim().length < 5) continue;
 
     faqs.push({
       question,
