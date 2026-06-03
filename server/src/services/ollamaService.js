@@ -1,6 +1,6 @@
 import { env } from '../config/env.js';
 
-export async function generateWithOllama({ query, contexts }) {
+export async function generateWithOllama({ query, contexts, bestscore }) {
   const contextText = contexts
     .map(
       (context, index) =>
@@ -10,8 +10,9 @@ export async function generateWithOllama({ query, contexts }) {
 
   const prompt = `You are a FAQ support chatbot.
 Answer using only the retrieved context.
-If the context only contains greetings ,say : "Hello,How can i help you today ?".
-If the context does not contain the answer, say: "I do not have enough information in the FAQ knowledge base to answer that."
+
+If (${bestscore} < 0.6 && contest does not contain the answer)if both condition satisfied then only , say: "I do not have enough information in the FAQ knowledge base to answer that."
+otherwise, answer the question based on the retrieved context.
 Keep the answer concise and helpful.
 
 Retrieved context:
@@ -46,9 +47,7 @@ Answer:`;
 
 export async function validateWithOllama({ query, contexts }) { 
   const prompt = `You are a validator bot.
-    invalid query example: ramdon noice
     valid query example: specific questions slightly related to context but couldnt be answered by context. 
-Validate the query.
 If query is valid then return "valid"
 If query is invalid then say, "Hello,How can i help you today ?".`;
 
