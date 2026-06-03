@@ -114,6 +114,38 @@ function toContext(result) {
   };
 }
 
+function getQueryWordCount(query) {
+  return String(query)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+}
+
+function getMinConfidenceForQuery(query) {
+  const wordCount = getQueryWordCount(query);
+  const baseConfidence = env.minConfidence;
+
+  if (wordCount <= 1) return Math.max(baseConfidence, 0.78);
+  if (wordCount <= 2) return Math.max(baseConfidence, 0.72);
+  if (wordCount <= 4) return Math.max(baseConfidence, 0.62);
+  if (wordCount >= 10) return Math.max(0.45, baseConfidence - 0.05);
+
+  return baseConfidence;
+}
+
+function isNotEnoughInformationAnswer(answer) {
+  return String(answer || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .includes("i do not have enough information in the faq knowledge base to answer that");
+}
+
+function isFaqAnswer(answer) {
+  return !isNotEnoughInformationAnswer(answer);
+}
+
 export async function answerQuestion(query) {
   const normalizedQuery = String(query || "").trim();
 
@@ -128,8 +160,9 @@ export async function answerQuestion(query) {
 
   const results = await retrieveContext(normalizedQuery);
   const bestScore = results[0]?.score || 0;
-  const answerFound = bestScore >= env.minConfidence;
- console.log(bestScore);
+  const minConfidence = getMinConfidenceForQuery(normalizedQuery);
+  const answerFound = bestScore >= minConfidence;
+  console.log(bestScore);
   if (results.length === 0) {
     return {
       answer:
@@ -153,7 +186,7 @@ export async function answerQuestion(query) {
     } else {
       return {
         answer,
-        answerFound: true,
+        answerFound: isFaqAnswer(answer),
         confidence: bestScore,
         sources: results.map(toSource),
       };
@@ -162,11 +195,12 @@ export async function answerQuestion(query) {
   const answer = await generateWithOllama({
     query: normalizedQuery,
     contexts,
+    bestscore: bestScore,
   });
 
   return {
     answer,
-    answerFound: true,
+    answerFound: isFaqAnswer(answer),
     confidence: bestScore,
     sources: results.map(toSource),
   };
