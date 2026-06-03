@@ -219,23 +219,23 @@ function App() {
     }
   }, [theme]);
 
-  useEffect(() => {
   async function fetchMostAskedQuestions() {
-    try {
-      const response = await fetch(`${API_URL}/api/most-asked`);
+  try {
+    const response = await fetch(`${API_URL}/api/most-asked`);
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch questions');
-      }
-
-      const data = await response.json();
-
-      setMostAskedQuestions(data);
-    } catch (error) {
-      console.error('Failed to load most asked questions:', error);
+    if (!response.ok) {
+      throw new Error('Failed to fetch questions');
     }
-  }
 
+    const data = await response.json();
+
+    setMostAskedQuestions(data);
+  } catch (error) {
+    console.error('Failed to load most asked questions:', error);
+  }
+}
+
+useEffect(() => {
   fetchMostAskedQuestions();
 }, []);
   
@@ -310,6 +310,9 @@ function App() {
           timestamp: getTime()
         }
       ]);
+      
+      await fetchMostAskedQuestions();
+      
     } catch (_error) {
       setMessages((current) => [
         ...current,
@@ -364,6 +367,8 @@ function App() {
           timestamp: getTime()
         }
       ]);
+      
+      await fetchMostAskedQuestions();
     } catch (_error) {
       setMessages((current) => [
         ...current,
@@ -415,6 +420,8 @@ function App() {
           timestamp: getTime()
         }
       ]);
+      
+      await fetchMostAskedQuestions();
     } catch (_error) {
       setMessages((current) => [
         ...current,
