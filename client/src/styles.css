@@ -41,10 +41,11 @@ button {
 
 .chatPanel {
   width: min(1120px, 100%);
-  height: min(820px, calc(100vh - 92px));
   min-height: 620px;
-  display: grid;
-  grid-template-rows: auto 1fr auto auto;
+
+  display: flex;
+  flex-direction: column;
+
   overflow: hidden;
   border: 1px solid rgba(219, 226, 238, 0.9);
   border-radius: 32px;
@@ -165,6 +166,7 @@ button {
   gap: 22px;
   overflow-y: auto;
   min-height: 0;
+  flex: 1;
   padding: 34px 40px 18px;
   background: #ffffff;
   scrollbar-color: #d8e1ef transparent;
