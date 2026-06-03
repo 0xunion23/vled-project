@@ -243,7 +243,7 @@ useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
   useEffect(() => {
-  fetch('http://localhost:5000/api/analytics/daily-searches')
+  fetch(`${API_URL}/api/analytics/daily-searches`)
     .then((res) => res.json())
     .then((data) => setAnalyticsData(data))
     .catch((err) => console.error(err));
