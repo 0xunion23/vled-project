@@ -716,10 +716,10 @@ function CreateOrgView({ onBack, onPublished }) {
   if (step === 'review') {
     return (
       <main className="appShell">
-        <section className="chatPanel">
-          <header className="topBar">
+        <section className="chatPanel orgBuilderPanel">
+          <header className="topBar orgBuilderTopBar">
             <button className="backBtn" onClick={() => setStep('form')}><ArrowLeft size={16} /> Back</button>
-            <h2 style={{ margin: 0, fontSize: '1rem' }}>Review & edit FAQs</h2>
+            <h2 className="orgBuilderTitle">Review & edit FAQs</h2>
             <button className="orgCreateBtn" onClick={handlePublish} disabled={publishing || faqs.length === 0}>
               {publishing ? 'Publishing…' : `Publish ${faqs.length} FAQs`}
             </button>
@@ -751,10 +751,10 @@ function CreateOrgView({ onBack, onPublished }) {
 
   return (
     <main className="appShell">
-      <section className="chatPanel">
-        <header className="topBar">
+      <section className="chatPanel orgBuilderPanel">
+        <header className="topBar orgBuilderTopBar">
           <button className="backBtn" onClick={onBack}><ArrowLeft size={16} /> Back</button>
-          <h2 style={{ margin: 0, fontSize: '1rem' }}>Create your FAQ bot</h2>
+          <h2 className="orgBuilderTitle">Create your FAQ bot</h2>
           <div />
         </header>
 
