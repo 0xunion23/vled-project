@@ -2,7 +2,7 @@ import { env } from "../config/env.js";
 import { Faq } from "../models/Faq.js";
 import { buildFaqText, embedFaq, embedTexts } from "./embeddingService.js";
 import { generateWithOllama, validateWithOllama } from "./ollamaService.js";
-
+import { PendingQuestion } from "../models/PendingQuestion.js";
 let cachedKnowledgeBase = null;
 
 function dotProduct(left, right) {
@@ -116,7 +116,8 @@ function toContext(result) {
 
 export async function answerQuestion(query) {
   const normalizedQuery = String(query || "").trim();
-
+const [queryEmbedding] =
+await embedTexts([normalizedQuery]);
   if (!normalizedQuery) {
     return {
       answer: "Please enter a question.",
@@ -141,24 +142,38 @@ export async function answerQuestion(query) {
   }
   const contexts = results.map(toContext);
   if (!answerFound) {
-    const answer = await validateWithOllama({ query: normalizedQuery, contexts });
-    if (answer.toLowerCase() === "valid") {
-      return {
-        answer:
-          "I don't have enough information in the FAQ knowledge base to answer that.",
-        answerFound: false,
-        confidence: bestScore,
-        sources: results.map(toSource),
-      };
-    } else {
-      return {
-        answer,
-        answerFound: true,
-        confidence: bestScore,
-        sources: results.map(toSource),
-      };
-    }
+
+  const duplicate =
+    await findDuplicateQuestion(
+      queryEmbedding
+    );
+
+  if (duplicate) {
+    return {
+      answer:
+        `A similar question is already under review: "${duplicate.match.question}"`,
+      answerFound: false,
+      duplicateFound: true,
+      confidence: duplicate.score,
+      sources: []
+    };
   }
+
+  await PendingQuestion.create({
+    question: normalizedQuery,
+    embedding: queryEmbedding,
+    status: "pending"
+  });
+
+  return {
+    answer:
+      "Your question has been submitted for review.",
+    answerFound: false,
+    ticketCreated: true,
+    confidence: bestScore,
+    sources: []
+  };
+}
   const answer = await generateWithOllama({
     query: normalizedQuery,
     contexts,
@@ -170,4 +185,40 @@ export async function answerQuestion(query) {
     confidence: bestScore,
     sources: results.map(toSource),
   };
+}
+async function findDuplicateQuestion(
+  queryEmbedding,
+  threshold = 0.85
+) {
+  const pendingQuestions =
+    await PendingQuestion.find({
+      status: "pending"
+    });
+
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const question of pendingQuestions) {
+    const score = dotProduct(
+      queryEmbedding,
+      question.embedding
+    );
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = question;
+    }
+  }
+
+  if (
+    bestMatch &&
+    bestScore >= threshold
+  ) {
+    return {
+      match: bestMatch,
+      score: bestScore
+    };
+  }
+
+  return null;
 }
