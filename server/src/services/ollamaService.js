@@ -10,8 +10,10 @@ export async function generateWithOllama({ query, contexts }) {
 
   const prompt = `You are a FAQ support chatbot.
 Answer using only the retrieved context.
+
 If the context only contains greetings ,say : "Hello,How can i help you today ?".
 If the context does not contain the answer, say: "I do not have enough information in the FAQ knowledge base to answer that."
+if not sure or 50:50 then say "I do not have enough information in the FAQ knowledge base to answer that."
 Keep the answer concise and helpful.
 
 Retrieved context:
@@ -46,7 +48,7 @@ Answer:`;
 
 export async function validateWithOllama({ query, contexts }) { 
   const prompt = `You are a validator bot.
-    invalid query example: ramdon noice
+    invalid query example: ramdom noice
     valid query example: specific questions slightly related to context but couldnt be answered by context. 
 Validate the query.
 If query is valid then return "valid"
