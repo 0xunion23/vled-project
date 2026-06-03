@@ -1,22 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  ResponsiveContainer
+  LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer
 } from 'recharts';
 import {
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
-  ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus
+  ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil,
+  ArrowDown, ArrowLeft, Trash2, Plus
 } from 'lucide-react';
 import './styles.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 const QUICK_PROMPTS = [
   'Who can sign the NOC?',
   'Is there a stipend?',
@@ -32,6 +27,8 @@ const TONE_OPTIONS = [
 ];
 
 const getTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+// ── Shared components ─────────────────────────────────────────────────────────
 
 function ConfidenceBadge({ found, confidence }) {
   return (
@@ -106,72 +103,34 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
 
         {isUser ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-            <button
-              onClick={handleCopy}
-              title="Copy prompt"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: copied ? '#22c55e' : '#6b7280'
-              }}
-            >
+            <button onClick={handleCopy} title="Copy prompt"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#22c55e' : '#6b7280' }}>
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
-
             {!isEditing && (
-              <button
-                onClick={() => { setIsEditing(true); setEditText(message.text); }}
-                title="Edit prompt"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}
-              >
+              <button onClick={() => { setIsEditing(true); setEditText(message.text); }} title="Edit prompt"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}>
                 <Pencil size={15} />
               </button>
             )}
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-            <button
-              onClick={() => setVote('up')}
-              title="Helpful"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: vote === 'up' ? '#22c55e' : '#6b7280'
-              }}
-            >
+            <button onClick={() => setVote('up')} title="Helpful"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: vote === 'up' ? '#22c55e' : '#6b7280' }}>
               <ThumbsUp size={16} />
             </button>
-
-            <button
-              onClick={() => setVote('down')}
-              title="Not helpful"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: vote === 'down' ? '#ef4444' : '#6b7280'
-              }}
-            >
+            <button onClick={() => setVote('down')} title="Not helpful"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: vote === 'down' ? '#ef4444' : '#6b7280' }}>
               <ThumbsDown size={16} />
             </button>
-
-            <button
-              onClick={handleCopy}
-              title="Copy answer"
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: copied ? '#22c55e' : '#6b7280'
-              }}
-            >
+            <button onClick={handleCopy} title="Copy answer"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#22c55e' : '#6b7280' }}>
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
-
             {isLatestBotMessage && (
-              <button
-                onClick={onRegenerate}
-                title="Regenerate response"
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: '#6b7280', display: 'flex', alignItems: 'center',
-                  gap: '4px', fontSize: '13px', marginLeft: 'auto'
-                }}
-              >
+              <button onClick={onRegenerate} title="Regenerate response"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', marginLeft: 'auto' }}>
                 <RotateCcw size={14} /> Regenerate
               </button>
             )}
@@ -193,14 +152,14 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   );
 }
 
-// ── View: default home chat (all existing features preserved) ─────────────────
+// ── View: default chat (existing — fully preserved) ───────────────────────────
 
 function DefaultChat({ onCreateOrg }) {
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
+  const [input, setInput]             = useState('');
+  const [isLoading, setIsLoading]     = useState(false);
+  const messagesEndRef                = useRef(null);
   const [mostAskedQuestions, setMostAskedQuestions] = useState([]);
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
+  const [theme, setTheme]             = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [analyticsData, setAnalyticsData] = useState([]);
 
@@ -209,10 +168,7 @@ function DefaultChat({ onCreateOrg }) {
       id: crypto.randomUUID(),
       role: 'assistant',
       text: "Hi there! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.",
-      answerFound: true,
-      confidence: 1,
-      sources: [],
-      timestamp: getTime()
+      answerFound: true, confidence: 1, sources: [], timestamp: getTime()
     }
   ]);
 
@@ -238,16 +194,14 @@ function DefaultChat({ onCreateOrg }) {
     }
   }
 
-  useEffect(() => {
-    fetchMostAskedQuestions();
-  }, []);
+  useEffect(() => { fetchMostAskedQuestions(); }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/analytics/daily-searches`)
+    fetch('http://localhost:5000/api/analytics/daily-searches')
       .then((res) => res.json())
       .then((data) => setAnalyticsData(data))
       .catch((err) => console.error(err));
@@ -255,8 +209,7 @@ function DefaultChat({ onCreateOrg }) {
 
   function handleScroll(e) {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
-    const isScrolledUp = scrollHeight - scrollTop - clientHeight > 400;
-    setShowScrollButton(isScrolledUp);
+    setShowScrollButton(scrollHeight - scrollTop - clientHeight > 400);
   }
 
   function scrollToBottom() {
@@ -264,17 +217,11 @@ function DefaultChat({ onCreateOrg }) {
   }
 
   function handleRefresh() {
-    setMessages([
-      {
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        text: "Hi there! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.",
-        answerFound: true,
-        confidence: 1,
-        sources: [],
-        timestamp: getTime()
-      }
-    ]);
+    setMessages([{
+      id: crypto.randomUUID(), role: 'assistant',
+      text: "Hi there! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.",
+      answerFound: true, confidence: 1, sources: [], timestamp: getTime()
+    }]);
     setInput('');
     setIsLoading(false);
   }
@@ -290,25 +237,16 @@ function DefaultChat({ onCreateOrg }) {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: newText })
       });
       if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }
-      ]);
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }]);
       await fetchMostAskedQuestions();
-    } catch (_error) {
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch {
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }]);
+    } finally { setIsLoading(false); }
   }
 
   async function handleRegenerate() {
@@ -322,59 +260,37 @@ function DefaultChat({ onCreateOrg }) {
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: lastUserText })
       });
       if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }
-      ]);
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }]);
       await fetchMostAskedQuestions();
-    } catch (_error) {
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch {
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }]);
+    } finally { setIsLoading(false); }
   }
 
   async function sendMessage(event) {
     event.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
-    setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
+    setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
     setInput('');
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text })
       });
       if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }
-      ]);
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }]);
       await fetchMostAskedQuestions();
-    } catch (_error) {
-      setMessages((current) => [
-        ...current,
-        { id: crypto.randomUUID(), role: 'assistant', text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  function useQuickPrompt(prompt) {
-    setInput(prompt);
+    } catch {
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }]);
+    } finally { setIsLoading(false); }
   }
 
   return (
@@ -384,47 +300,23 @@ function DefaultChat({ onCreateOrg }) {
           <div className="brandBlock">
             <div className="brandIcon"><Bot size={22} /></div>
             <div>
-              <div className="titleRow">
-                <h1>FAQ OxEngine</h1>
-                <span className="versionTag">v2.1</span>
-              </div>
+              <div className="titleRow"><h1>FAQ OxEngine</h1><span className="versionTag">v2.1</span></div>
               <p>Answers from the FAQ knowledge base</p>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <select
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              title="Change color theme"
-              style={{
-                padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0',
-                background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '13px',
-                fontWeight: '500', outline: 'none'
-              }}
-            >
+            <select value={theme} onChange={(e) => setTheme(e.target.value)} title="Change color theme"
+              style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '13px', fontWeight: '500', outline: 'none' }}>
               <option value="auto">💻 Auto</option>
               <option value="light">☀️ Light</option>
               <option value="dark">🌙 Dark</option>
             </select>
-
-            <button
-              onClick={handleRefresh}
-              title="Clear conversation"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0',
-                background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '13px',
-                fontWeight: '500'
-              }}
-            >
+            <button onClick={handleRefresh} title="Clear conversation"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0', background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '13px', fontWeight: '500' }}>
               <RefreshCw size={14} /> Refresh Chat
             </button>
-
-            <div className="statusPill">
-              <Circle size={10} fill="currentColor" />
-              Escalation off
-            </div>
-
+            <div className="statusPill"><Circle size={10} fill="currentColor" />Escalation off</div>
+            {/* ✨ NEW: Create FAQ Bot button */}
             <button className="orgCreateBtn" onClick={onCreateOrg}>✨ Create FAQ Bot</button>
           </div>
         </header>
@@ -433,30 +325,22 @@ function DefaultChat({ onCreateOrg }) {
           {messages.map((message, index) => {
             const isLatestBotMessage = message.role === 'assistant' && index === messages.length - 1;
             return (
-              <Message
-                key={message.id}
-                message={message}
+              <Message key={message.id} message={message}
                 isLatestBotMessage={isLatestBotMessage}
                 onRegenerate={handleRegenerate}
-                onEditPrompt={handleEditPrompt}
-              />
+                onEditPrompt={handleEditPrompt} />
             );
           })}
           {isLoading && (
             <article className="message botMessage">
               <div className="messageAvatar"><Bot size={18} /></div>
-              <div className="bubble loadingBubble">
-                <Loader2 size={18} className="spin" />
-                Retrieving context
-              </div>
+              <div className="bubble loadingBubble"><Loader2 size={18} className="spin" />Retrieving context</div>
             </article>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        <button
-          onClick={scrollToBottom}
-          title="Scroll to latest message"
+        <button onClick={scrollToBottom} title="Scroll to latest message"
           style={{
             position: 'absolute', bottom: '230px', left: '50%',
             opacity: showScrollButton ? 1 : 0,
@@ -468,8 +352,7 @@ function DefaultChat({ onCreateOrg }) {
             boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', zIndex: 10
-          }}
-        >
+          }}>
           <ArrowDown size={22} />
         </button>
 
@@ -479,11 +362,8 @@ function DefaultChat({ onCreateOrg }) {
               Most Asked Questions (Top 20)
             </h3>
             {mostAskedQuestions.map((question) => (
-              <button
-                key={question._id || question.normalizedQuestion}
-                type="button"
-                onClick={() => useQuickPrompt(question.displayQuestion)}
-              >
+              <button key={question._id || question.normalizedQuestion} type="button"
+                onClick={() => setInput(question.displayQuestion)}>
                 {question.displayQuestion} ({question.count})
               </button>
             ))}
@@ -492,21 +372,15 @@ function DefaultChat({ onCreateOrg }) {
 
         <div className="quickPrompts" aria-label="Suggested questions">
           {QUICK_PROMPTS.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => useQuickPrompt(prompt)}>
-              {prompt}
-            </button>
+            <button key={prompt} type="button" onClick={() => setInput(prompt)}>{prompt}</button>
           ))}
         </div>
 
         <form className="composer" onSubmit={sendMessage}>
           <div className="inputShell">
             <MessageSquare size={21} />
-            <input
-              value={input}
-              onChange={(event) => setInput(event.target.value)}
-              placeholder="Ask a question..."
-              aria-label="Question"
-            />
+            <input value={input} onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask a question..." aria-label="Question" />
             <button type="submit" disabled={isLoading || !input.trim()} aria-label="Send message">
               <Send size={18} />
             </button>
@@ -537,7 +411,7 @@ function DefaultChat({ onCreateOrg }) {
 // ── View: create org form ─────────────────────────────────────────────────────
 
 function CreateOrgView({ onBack, onPublished }) {
-  const [step, setStep]             = useState('form'); // 'form' | 'review'
+  const [step, setStep]             = useState('form');
   const [form, setForm]             = useState({ name: '', description: '', domain: '', tone: 'friendly' });
   const [faqs, setFaqs]             = useState([]);
   const [generating, setGenerating] = useState(false);
@@ -554,9 +428,8 @@ function CreateOrgView({ onBack, onPublished }) {
     setGenerating(true);
     try {
       const res  = await fetch(`${API_URL}/api/orgs/generate`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(form),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Generation failed');
@@ -572,12 +445,8 @@ function CreateOrgView({ onBack, onPublished }) {
   function updateFaq(key, field, value) {
     setFaqs((prev) => prev.map((f) => f._key === key ? { ...f, [field]: value } : f));
   }
-  function removeFaq(key) {
-    setFaqs((prev) => prev.filter((f) => f._key !== key));
-  }
-  function addFaq() {
-    setFaqs((prev) => [...prev, { _key: Date.now(), question: '', answer: '', category: 'General' }]);
-  }
+  function removeFaq(key) { setFaqs((prev) => prev.filter((f) => f._key !== key)); }
+  function addFaq() { setFaqs((prev) => [...prev, { _key: Date.now(), question: '', answer: '', category: 'General' }]); }
 
   async function handlePublish() {
     if (faqs.some((f) => !f.question.trim() || !f.answer.trim())) {
@@ -588,9 +457,8 @@ function CreateOrgView({ onBack, onPublished }) {
     setPublishing(true);
     try {
       const res  = await fetch(`${API_URL}/api/orgs`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...form, faqs }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, faqs }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Publish failed');
@@ -613,9 +481,7 @@ function CreateOrgView({ onBack, onPublished }) {
               {publishing ? 'Publishing…' : `Publish ${faqs.length} FAQs`}
             </button>
           </header>
-
           {error && <p className="formError">{error}</p>}
-
           <div className="faqReviewList">
             {faqs.map((faq) => (
               <div key={faq._key} className="faqReviewCard">
@@ -625,10 +491,12 @@ function CreateOrgView({ onBack, onPublished }) {
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
-                  <button className="removeFaqBtn" onClick={() => removeFaq(faq._key)} aria-label="Remove FAQ"><Trash2 size={14} /></button>
+                  <button className="removeFaqBtn" onClick={() => removeFaq(faq._key)}><Trash2 size={14} /></button>
                 </div>
-                <input className="faqQInput" placeholder="Question" value={faq.question} onChange={(e) => updateFaq(faq._key, 'question', e.target.value)} />
-                <textarea className="faqAInput" rows={3} placeholder="Answer" value={faq.answer} onChange={(e) => updateFaq(faq._key, 'answer', e.target.value)} />
+                <input className="faqQInput" placeholder="Question" value={faq.question}
+                  onChange={(e) => updateFaq(faq._key, 'question', e.target.value)} />
+                <textarea className="faqAInput" rows={3} placeholder="Answer" value={faq.answer}
+                  onChange={(e) => updateFaq(faq._key, 'answer', e.target.value)} />
               </div>
             ))}
             <button className="addFaqBtn" onClick={addFaq}><Plus size={14} /> Add FAQ</button>
@@ -646,9 +514,7 @@ function CreateOrgView({ onBack, onPublished }) {
           <h2 style={{ margin: 0, fontSize: '1rem' }}>Create your FAQ bot</h2>
           <div />
         </header>
-
         {error && <p className="formError">{error}</p>}
-
         <form className="orgForm" onSubmit={handleGenerate}>
           <div className="formGroup">
             <label>Organisation name *</label>
@@ -660,7 +526,7 @@ function CreateOrgView({ onBack, onPublished }) {
           </div>
           <div className="formGroup">
             <label>Description *</label>
-            <textarea name="description" required rows={4} placeholder="Describe what your organisation does, who it serves, and any key details..." value={form.description} onChange={handleFormChange} className="formInput" style={{ resize: 'vertical' }} />
+            <textarea name="description" required rows={4} placeholder="Describe what your organisation does..." value={form.description} onChange={handleFormChange} className="formInput" style={{ resize: 'vertical' }} />
           </div>
           <div className="formGroup">
             <label>Tone</label>
@@ -686,11 +552,11 @@ function CreateOrgView({ onBack, onPublished }) {
 // ── View: org chat (shareable link experience) ────────────────────────────────
 
 function OrgChatView({ orgId, onBack }) {
-  const [org, setOrg]           = useState(null);
+  const [org, setOrg]         = useState(null);
   const [orgError, setOrgError] = useState('');
-  const [input, setInput]       = useState('');
+  const [input, setInput]     = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages]   = useState([]);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -699,47 +565,31 @@ function OrgChatView({ orgId, onBack }) {
       .then((data) => {
         if (data.message) { setOrgError(data.message); return; }
         setOrg(data.org);
-        setMessages([{
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: `Hi! I'm the FAQ assistant for ${data.org.name}. Ask me anything about us.`,
-          answerFound: true, confidence: 1, sources: []
-        }]);
+        setMessages([{ id: crypto.randomUUID(), role: 'assistant', text: `Hi! I'm the FAQ assistant for ${data.org.name}. Ask me anything about us.`, answerFound: true, confidence: 1, sources: [], timestamp: getTime() }]);
       })
       .catch(() => setOrgError('Failed to load organisation.'));
   }, [orgId]);
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   async function sendMessage(event) {
     event.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
-    setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'user', text }]);
+    setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
     setInput('');
     setIsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/orgs/${orgId}/chat`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ message: text }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
       });
       if (!response.ok) throw new Error('Request failed');
       const data = await response.json();
-      setMessages((c) => [
-        ...c,
-        { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources }
-      ]);
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: data.answer, answerFound: data.answerFound, confidence: data.confidence, sources: data.sources, timestamp: getTime() }]);
     } catch {
-      setMessages((c) => [
-        ...c,
-        { id: crypto.randomUUID(), role: 'assistant', text: 'Something went wrong. Please try again.', answerFound: false, confidence: 0, sources: [] }
-      ]);
-    } finally {
-      setIsLoading(false);
-    }
+      setMessages((c) => [...c, { id: crypto.randomUUID(), role: 'assistant', text: 'Something went wrong. Please try again.', answerFound: false, confidence: 0, sources: [], timestamp: getTime() }]);
+    } finally { setIsLoading(false); }
   }
 
   if (orgError) {
@@ -756,13 +606,7 @@ function OrgChatView({ orgId, onBack }) {
   }
 
   if (!org) {
-    return (
-      <main className="appShell">
-        <section className="chatPanel" style={{ alignItems: 'center', justifyContent: 'center' }}>
-          <Loader2 className="spin" size={28} />
-        </section>
-      </main>
-    );
+    return <main className="appShell"><section className="chatPanel" style={{ alignItems: 'center', justifyContent: 'center' }}><Loader2 className="spin" size={28} /></section></main>;
   }
 
   return (
@@ -770,22 +614,22 @@ function OrgChatView({ orgId, onBack }) {
       <section className="chatPanel" aria-label={`${org.name} FAQ chatbot`}>
         <header className="topBar">
           <div className="brandBlock">
-            <div className="brandIcon" style={{ background: '#4f46e5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 700 }}>
-              {org.name[0].toUpperCase()}
-            </div>
+            <div className="brandIcon" style={{ background: '#4f46e5' }}>{org.name[0].toUpperCase()}</div>
             <div>
               <div className="titleRow"><h1>{org.name}</h1></div>
               <p>{org.domain}</p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div className="statusPill"><Circle size={10} fill="currentColor" />FAQ bot</div>
-            <button className="backBtn" onClick={onBack}><ArrowLeft size={16} /> Home</button>
-          </div>
+          <div className="statusPill"><Circle size={10} fill="currentColor" />FAQ bot</div>
         </header>
 
         <div className="messages">
-          {messages.map((m) => <Message key={m.id} message={m} />)}
+          {messages.map((m, index) => (
+            <Message key={m.id} message={m}
+              isLatestBotMessage={m.role === 'assistant' && index === messages.length - 1}
+              onRegenerate={() => {}}
+              onEditPrompt={() => {}} />
+          ))}
           {isLoading && (
             <article className="message botMessage">
               <div className="messageAvatar"><Bot size={18} /></div>
@@ -798,7 +642,8 @@ function OrgChatView({ orgId, onBack }) {
         <form className="composer" onSubmit={sendMessage}>
           <div className="inputShell">
             <MessageSquare size={21} />
-            <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={`Ask ${org.name} anything…`} aria-label="Question" />
+            <input value={input} onChange={(e) => setInput(e.target.value)}
+              placeholder={`Ask ${org.name} anything…`} aria-label="Question" />
             <button type="submit" disabled={isLoading || !input.trim()} aria-label="Send"><Send size={18} /></button>
           </div>
           <p>Press Enter to send</p>
@@ -847,7 +692,7 @@ function ShareView({ orgId, orgName, onBack, onViewBot }) {
   );
 }
 
-// ── Root App — view router ────────────────────────────────────────────────────
+// ── Root App ──────────────────────────────────────────────────────────────────
 
 function App() {
   const params = new URLSearchParams(window.location.search);
