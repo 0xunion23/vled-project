@@ -4,6 +4,8 @@ import { env } from './config/env.js';
 import { connectMongo } from './db/mongoose.js';
 import { chatRouter } from './routes/chatRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
+import { mostAskedRouter } from './routes/mostAskedRoutes.js';
+import analyticsRoutes from './routes/analytics.js';
 import { orgRouter } from './routes/orgRoutes.js';
 
 const app = express();
@@ -17,6 +19,8 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/chat', chatRouter);
 app.use('/api/faqs', faqRouter);
+app.use('/api/most-asked', mostAskedRouter);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/orgs', orgRouter);
 
 app.use((error, _req, res, _next) => {
