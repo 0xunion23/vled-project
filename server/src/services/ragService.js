@@ -102,6 +102,17 @@ export async function answerQuestion(query, sessionId = '') {
     return { answer: 'Please enter a question.', answerFound: false, confidence: 0, sources: [] };
   }
 
+  // Validate query for noise/gibberish using Ollama before processing
+  const validationResult = await validateWithOllama({ query: normalizedQuery });
+  if (validationResult.toLowerCase().includes('invalid')) {
+    return {
+      answer: "Hello, How can I help you today?",
+      answerFound: false,
+      confidence: 0,
+      sources: []
+    };
+  }
+
   // Track for most-asked analytics (peers' feature)
   await trackQuestion(normalizedQuery);
 

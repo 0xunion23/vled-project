@@ -44,13 +44,21 @@ Answer:`;
   return String(data.response || '').trim();
 }
 
-export async function validateWithOllama({ query, contexts }) { 
-  const prompt = `You are a validator bot.
-    invalid query example: ramdon noice
-    valid query example: specific questions slightly related to context but couldnt be answered by context. 
-Validate the query.
-If query is valid then return "valid"
-If query is invalid then say, "Hello,How can i help you today ?".`;
+export async function validateWithOllama({ query }) { 
+  const prompt = `You are a query validator. Your ONLY job is to detect pure gibberish or random keyboard noise.
+
+INVALID (gibberish/noise): "asdfghjkl", "qwerty123", "xzxzxz", "aaaaaa", "123456abc", random characters with no meaning.
+VALID (everything else): ANY real sentence, question, or phrase in any language — even if unrelated to internship, even if the answer is unknown.
+
+Examples of VALID queries:
+- "what is the dress code"
+- "who can sign the NOC"
+- "from when can I start the internship"
+- "what is the weather"
+- "hello"
+- "tell me a joke"
+
+Respond with ONLY one word: "valid" or "invalid". No explanation.`;
 
   const response = await fetch(`${env.ollamaBaseUrl}/api/generate`, {
     method: 'POST',
