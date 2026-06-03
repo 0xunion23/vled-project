@@ -13,6 +13,7 @@ import {
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound, 
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown 
 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import './styles.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
@@ -93,7 +94,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
             </div>
           </div>
         ) : (
-          <p>{message.text}</p>
+          <ReactMarkdown>{message.text}</ReactMarkdown>
         )}
         
         {isUser ? (
@@ -188,12 +189,14 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
 function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef(null);
   const [mostAskedQuestions, setMostAskedQuestions] = useState([]);
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [analyticsData, setAnalyticsData] = useState([]);
+
+  const messagesContainerRef = useRef(null);
+  const isAutoScrolling = useRef(false);
 
   const [messages, setMessages] = useState([
     {
@@ -220,43 +223,51 @@ function App() {
   }, [theme]);
 
   async function fetchMostAskedQuestions() {
-  try {
-    const response = await fetch(`${API_URL}/api/most-asked`);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch questions');
+    try {
+      const response = await fetch(`${API_URL}/api/most-asked`);
+      if (!response.ok) throw new Error('Failed to fetch questions');
+      const data = await response.json();
+      setMostAskedQuestions(data);
+    } catch (error) {
+      console.error('Failed to load most asked questions:', error);
     }
-
-    const data = await response.json();
-
-    setMostAskedQuestions(data);
-  } catch (error) {
-    console.error('Failed to load most asked questions:', error);
   }
-}
 
-useEffect(() => {
-  fetchMostAskedQuestions();
-}, []);
+  useEffect(() => {
+    fetchMostAskedQuestions();
+  }, []);
   
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollToBottom();
   }, [messages, isLoading]);
+
   useEffect(() => {
-  fetch(`${API_URL}/api/analytics/daily-searches`)
-    .then((res) => res.json())
-    .then((data) => setAnalyticsData(data))
-    .catch((err) => console.error(err));
-}, []);
+    fetch(`${API_URL}/api/analytics/daily-searches`)
+      .then((res) => res.json())
+      .then((data) => setAnalyticsData(data))
+      .catch((err) => console.error(err));
+  }, []);
 
   function handleScroll(e) {
+    if (isAutoScrolling.current) return;
     const { scrollTop, scrollHeight, clientHeight } = e.target;
-    const isScrolledUp = scrollHeight - scrollTop - clientHeight > 400;
+    const isScrolledUp = Math.ceil(scrollTop) + clientHeight < scrollHeight - 100;
     setShowScrollButton(isScrolledUp);
   }
 
   function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      isAutoScrolling.current = true;
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+
+      setTimeout(() => {
+        isAutoScrolling.current = false;
+        setShowScrollButton(false);
+      }, 500);
+    }
   }
 
   function handleRefresh() {
@@ -446,7 +457,7 @@ useEffect(() => {
 
   return (
     <main className="appShell">
-      <section className="chatPanel" aria-label="RAG chatbot" style={{ position: 'relative' }}>
+      <section className="chatPanel" aria-label="RAG chatbot" style={{ display: 'flex', flexDirection: 'column', paddingBottom: '20px' }}>
         <header className="topBar">
           <div className="brandBlock">
             <div className="brandIcon">
@@ -497,87 +508,89 @@ useEffect(() => {
           </div>
         </header>
 
-        <div className="messages" onScroll={handleScroll}>
-          {messages.map((message, index) => {
-            const isLatestBotMessage = message.role === 'assistant' && index === messages.length - 1;
-            
-            return (
-              <Message 
-                key={message.id} 
-                message={message} 
-                isLatestBotMessage={isLatestBotMessage}
-                onRegenerate={handleRegenerate}
-                onEditPrompt={handleEditPrompt} 
-              />
-            );
-          })}
-          {isLoading && (
-            <article className="message botMessage">
-              <div className="messageAvatar">
-                <Bot size={18} />
-              </div>
-              <div className="bubble loadingBubble">
-                <Loader2 size={18} className="spin" />
-                Retrieving context
-              </div>
-            </article>
-          )}
-          <div ref={messagesEndRef} />
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '60vh', minHeight: '400px', marginBottom: '20px' }}>
+          
+          <div className="messages" ref={messagesContainerRef} onScroll={handleScroll} style={{ flex: 1, overflowY: 'auto' }}>
+            {messages.map((message, index) => {
+              const isLatestBotMessage = message.role === 'assistant' && index === messages.length - 1;
+              
+              return (
+                <Message 
+                  key={message.id} 
+                  message={message} 
+                  isLatestBotMessage={isLatestBotMessage}
+                  onRegenerate={handleRegenerate}
+                  onEditPrompt={handleEditPrompt} 
+                />
+              );
+            })}
+            {isLoading && (
+              <article className="message botMessage">
+                <div className="messageAvatar">
+                  <Bot size={18} />
+                </div>
+                <div className="bubble loadingBubble">
+                  <Loader2 size={18} className="spin" />
+                  Retrieving context
+                </div>
+              </article>
+            )}
+          </div>
+
+          <button 
+            onClick={scrollToBottom}
+            title="Scroll to latest message"
+            style={{
+              position: 'absolute',
+              bottom: '20px', 
+              left: '50%',
+              opacity: showScrollButton ? 1 : 0,
+              transform: showScrollButton ? 'translate(-50%, 0)' : 'translate(-50%, 20px)',
+              pointerEvents: showScrollButton ? 'auto' : 'none',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              backgroundColor: '#2563eb',
+              color: 'white',
+              border: 'none',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              zIndex: 10
+            }}
+          >
+            <ArrowDown size={22} />
+          </button>
         </div>
 
-        <button 
-          onClick={scrollToBottom}
-          title="Scroll to latest message"
-          style={{
-            position: 'absolute',
-            bottom: '230px',
-            left: '50%',
-            opacity: showScrollButton ? 1 : 0,
-            transform: showScrollButton ? 'translate(-50%, 0)' : 'translate(-50%, 20px)',
-            pointerEvents: showScrollButton ? 'auto' : 'none',
-            transition: 'opacity 0.3s ease, transform 0.3s ease',
-            width: '42px',
-            height: '42px',
-            borderRadius: '50%',
-            backgroundColor: '#345df7',
-            color: 'white',
-            border: 'none',
-            boxShadow: '0 6px 16px rgba(0,0,0,0.2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            zIndex: 10
-          }}
-        >
-          <ArrowDown size={22} />
-        </button>
-
         {mostAskedQuestions.length > 0 && (
-<div className="mostAskedSection" aria-label="Most Asked Questions">
-    <h3
-      style={{
-        width: '100%',
-        margin: '0 0 10px 0',
-        color: '#64748b',
-        fontSize: '14px',
-        fontWeight: '700'
-      }}
-    >
-      Most Asked Questions (Top 20)
-    </h3>
+          <div className="mostAskedSection" aria-label="Most Asked Questions">
+            <h3
+              style={{
+                width: '100%',
+                margin: '0 0 10px 0',
+                color: '#64748b',
+                fontSize: '14px',
+                fontWeight: '700'
+              }}
+            >
+              Most Asked Questions (Top 20)
+            </h3>
 
-    {mostAskedQuestions.map((question) => (
-      <button
-        key={question._id || question.normalizedQuestion}
-        type="button"
-        onClick={() => useQuickPrompt(question.displayQuestion)}
-      >
-        {question.displayQuestion} ({question.count})
-      </button>
-    ))}
-  </div>
-)}
+            {mostAskedQuestions.map((question) => (
+              <button
+                key={question._id || question.normalizedQuestion}
+                type="button"
+                onClick={() => useQuickPrompt(question.displayQuestion)}
+              >
+                {question.displayQuestion} ({question.count})
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="quickPrompts" aria-label="Suggested questions">
           {QUICK_PROMPTS.map((prompt) => (
@@ -603,33 +616,33 @@ useEffect(() => {
           <p>Press Enter to send · Shift+Enter for new line</p>
         </form>
 
-<div style={{ marginTop: '30px', padding: '20px' }}>
-  <h2>📈 Daily Search Analytics</h2>
+        <div style={{ marginTop: '30px', padding: '20px' }}>
+          <h2>📈 Daily Search Analytics</h2>
 
-  <ResponsiveContainer width="100%" height={300}>
-    <LineChart data={analyticsData}>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="_id.date" />
-      <YAxis />
-      <Tooltip />
-      <Line
-        type="monotone"
-        dataKey="count"
-        stroke="#2563eb"
-        strokeWidth={3}
-      />
-    </LineChart>
-  </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={analyticsData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="_id.date" />
+              <YAxis />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke="#2563eb"
+                strokeWidth={3}
+              />
+            </LineChart>
+          </ResponsiveContainer>
 
-  <p style={{ marginTop: '10px' }}>
-    Total Searches:
-    {' '}
-    {analyticsData.reduce((sum, item) => sum + item.count, 0)}
-  </p>
-</div>
+          <p style={{ marginTop: '10px' }}>
+            Total Searches:
+            {' '}
+            {analyticsData.reduce((sum, item) => sum + item.count, 0)}
+          </p>
+        </div>
 
-</section>
-</main>
+      </section>
+    </main>
   );
 }
 
