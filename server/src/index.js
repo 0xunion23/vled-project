@@ -3,7 +3,10 @@ import express from 'express';
 import { env } from './config/env.js';
 import { connectMongo } from './db/mongoose.js';
 import { chatRouter } from './routes/chatRoutes.js';
+import { orgRouter } from './routes/orgRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
+import { mostAskedRouter } from './routes/mostAskedRoutes.js';
+import analyticsRoutes from './routes/analytics.js';
 
 const app = express();
 
@@ -15,7 +18,11 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/chat', chatRouter);
+app.use('/api/orgs', orgRouter);
 app.use('/api/faqs', faqRouter);
+app.use('/api/most-asked', mostAskedRouter);
+app.use('/api/analytics', analyticsRoutes);
+
 
 app.use((error, _req, res, _next) => {
   console.error(error);

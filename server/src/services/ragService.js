@@ -3,6 +3,8 @@ import { Faq } from "../models/Faq.js";
 import { buildFaqText, embedFaq, embedTexts } from "./embeddingService.js";
 import { generateWithOllama, validateWithOllama } from "./ollamaService.js";
 import { PendingQuestion } from "../models/PendingQuestion.js";
+import { trackQuestion } from './mostAskedService.js';
+
 let cachedKnowledgeBase = null;
 
 function dotProduct(left, right) {
@@ -127,6 +129,8 @@ await embedTexts([normalizedQuery]);
     };
   }
 
+  await trackQuestion(normalizedQuery);
+  
   const results = await retrieveContext(normalizedQuery);
   const bestScore = results[0]?.score || 0;
   const answerFound = bestScore >= env.minConfidence;
