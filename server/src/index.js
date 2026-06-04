@@ -5,6 +5,7 @@ import { connectMongo } from './db/mongoose.js';
 import { chatRouter } from './routes/chatRoutes.js';
 import { orgRouter } from './routes/orgRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
+import {questionReviewRouter} from './routes/questionReviewRoutes.js';
 import { mostAskedRouter } from './routes/mostAskedRoutes.js';
 import analyticsRoutes from './routes/analytics.js';
 
@@ -12,7 +13,10 @@ const app = express();
 
 app.use(cors({ origin: env.clientOrigin }));
 app.use(express.json({ limit: '1mb' }));
-
+app.use(
+  '/api/question-review',
+  questionReviewRouter
+);
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
