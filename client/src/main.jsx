@@ -12,7 +12,7 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus
+  ArrowLeft, Trash2, Plus, Volume2, Download
 } from 'lucide-react';
 import './styles.css';
 
@@ -23,7 +23,6 @@ const QUICK_PROMPTS = [
   'How long is the internship?',
   'How do I log in to ViBe?'
 ];
-
 
 const TONE_OPTIONS = [
   { value: 'friendly',  label: 'Friendly' },
@@ -53,6 +52,15 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
     navigator.clipboard.writeText(message.text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReadAloud = () => {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    } else {
+      const utterance = new SpeechSynthesisUtterance(message.text);
+      window.speechSynthesis.speak(utterance);
+    }
   };
 
   return (
@@ -101,7 +109,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
             </div>
           </div>
         ) : (
-          <p>{message.text}</p>
+          <p style={{ whiteSpace: 'pre-wrap' }}>{message.text}</p>
         )}
         
         {isUser ? (
@@ -162,6 +170,14 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
 
+            <button 
+              onClick={handleReadAloud}
+              title="Read aloud"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6b7280' }}
+            >
+              <Volume2 size={16} />
+            </button>
+
             {isLatestBotMessage && (
               <button 
                 onClick={onRegenerate}
@@ -193,11 +209,11 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   );
 }
 
-// ── View: default chat ──────────────────────────────────────────────────────
 function DefaultChat({ onCreateOrg }) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
   const [mostAskedQuestions, setMostAskedQuestions] = useState([]);
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
@@ -228,35 +244,40 @@ function DefaultChat({ onCreateOrg }) {
     }
   }, [theme]);
 
-  async function fetchMostAskedQuestions() {
-  try {
-    const response = await fetch(`${API_URL}/api/most-asked`);
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch questions');
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
+  }, [input]);
 
-    const data = await response.json();
-
-    setMostAskedQuestions(data);
-  } catch (error) {
-    console.error('Failed to load most asked questions:', error);
+  async function fetchMostAskedQuestions() {
+    try {
+      const response = await fetch(`${API_URL}/api/most-asked`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch questions');
+      }
+      const data = await response.json();
+      setMostAskedQuestions(data);
+    } catch (error) {
+      console.error('Failed to load most asked questions:', error);
+    }
   }
-}
 
-useEffect(() => {
-  fetchMostAskedQuestions();
-}, []);
+  useEffect(() => {
+    fetchMostAskedQuestions();
+  }, []);
   
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
+
   useEffect(() => {
-  fetch(`${API_URL}/api/analytics/daily-searches`)
-    .then((res) => res.json())
-    .then((data) => setAnalyticsData(data))
-    .catch((err) => console.error(err));
-}, []);
+    fetch(`${API_URL}/api/analytics/daily-searches`)
+      .then((res) => res.json())
+      .then((data) => setAnalyticsData(data))
+      .catch((err) => console.error(err));
+  }, []);
 
   function handleScroll(e) {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
@@ -282,7 +303,36 @@ useEffect(() => {
     ]);
     setInput('');
     setIsLoading(false);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
   }
+
+  function exportChatTranscript() {
+    const transcript = messages.map(m => {
+      const sender = m.role === 'user' ? 'You' : 'OxEngine';
+      return `[${m.timestamp}] ${sender}:\n${m.text}\n`;
+    }).join('\n');
+
+    const blob = new Blob([transcript], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = `OxEngine_Transcript_${new Date().toISOString().slice(0, 10)}.txt`;
+    downloadLink.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage(event);
+    }
+  }
+
+  const getCounterColor = () => {
+    if (input.length >= 500) return '#ef4444';
+    if (input.length >= 400) return '#f59e0b';
+    return '#94a3b8';
+  };
 
   async function handleEditPrompt(id, newText) {
     if (isLoading) return;
@@ -397,13 +447,14 @@ useEffect(() => {
   }
 
   async function sendMessage(event) {
-    event.preventDefault();
+    if (event) event.preventDefault();
     const text = input.trim();
-    if (!text || isLoading) return;
+    if (!text || isLoading || input.length > 500) return;
 
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
     setInput('');
     setIsLoading(true);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
@@ -457,7 +508,7 @@ useEffect(() => {
     <main className="appShell">
       <section className="chatPanel" aria-label="RAG chatbot" style={{ position: 'relative' }}>
         <header className="topBar">
-          <div className="brandBlock">
+          <div className="brandBlock" style={{ flex: 1 }}>
             <div className="brandIcon">
               <Bot size={22} />
             </div>
@@ -469,41 +520,56 @@ useEffect(() => {
               <p>Answers from the FAQ knowledge base</p>
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            
-            <select 
-              value={theme} 
-              onChange={(e) => setTheme(e.target.value)}
-              title="Change color theme"
-              style={{
-                padding: '6px 10px', borderRadius: '6px', border: '1px solid #e2e8f0',
-                background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '13px',
-                fontWeight: '500', outline: 'none'
-              }}
-            >
-              <option value="auto">💻 Auto</option>
-              <option value="light">☀️ Light</option>
-              <option value="dark">🌙 Dark</option>
-            </select>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <select 
+                value={theme} 
+                onChange={(e) => setTheme(e.target.value)}
+                title="Change color theme"
+                style={{
+                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
+                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
+                  fontWeight: '500', outline: 'none', whiteSpace: 'nowrap', width: '100%'
+                }}
+              >
+                <option value="auto">💻 Auto</option>
+                <option value="light">☀️ Light</option>
+                <option value="dark">🌙 Dark</option>
+              </select>
 
-            <button 
-              onClick={handleRefresh}
-              title="Clear conversation"
-              style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '6px 12px', borderRadius: '6px', border: '1px solid #e2e8f0',
-                background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '13px',
-                fontWeight: '500'
-              }}
-            >
-              <RefreshCw size={14} /> Refresh Chat
-            </button>
+              <button 
+                onClick={exportChatTranscript}
+                title="Export chat transcript"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
+                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
+                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
+                  fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
+                }}
+              >
+                <Download size={12} /> Export Chat
+              </button>
 
-            <div className="statusPill">
+              <button 
+                onClick={handleRefresh}
+                title="Clear conversation"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
+                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
+                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
+                  fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
+                }}
+              >
+                <RefreshCw size={12} /> Refresh Chat
+              </button>
+            </div>
+
+            <div className="statusPill" style={{ whiteSpace: 'nowrap' }}>
               <Circle size={10} fill="currentColor" />
               Escalation off
             </div>
-            <button className="orgCreateBtn" onClick={onCreateOrg}>✨ Create FAQ Bot</button>
+            <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
           </div>
         </header>
 
@@ -564,30 +630,30 @@ useEffect(() => {
         </button>
 
         {mostAskedQuestions.length > 0 && (
-<div className="mostAskedSection" aria-label="Most Asked Questions">
-    <h3
-      style={{
-        width: '100%',
-        margin: '0 0 10px 0',
-        color: '#64748b',
-        fontSize: '14px',
-        fontWeight: '700'
-      }}
-    >
-      Most Asked Questions (Top 20)
-    </h3>
+          <div className="mostAskedSection" aria-label="Most Asked Questions">
+            <h3
+              style={{
+                width: '100%',
+                margin: '0 0 10px 0',
+                color: '#64748b',
+                fontSize: '14px',
+                fontWeight: '700'
+              }}
+            >
+              Most Asked Questions (Top 20)
+            </h3>
 
-    {mostAskedQuestions.map((question) => (
-      <button
-        key={question._id || question.normalizedQuestion}
-        type="button"
-        onClick={() => useQuickPrompt(question.displayQuestion)}
-      >
-        {question.displayQuestion} ({question.count})
-      </button>
-    ))}
-  </div>
-)}
+            {mostAskedQuestions.map((question) => (
+              <button
+                key={question._id || question.normalizedQuestion}
+                type="button"
+                onClick={() => useQuickPrompt(question.displayQuestion)}
+              >
+                {question.displayQuestion} ({question.count})
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="quickPrompts" aria-label="Suggested questions">
           {QUICK_PROMPTS.map((prompt) => (
@@ -598,57 +664,76 @@ useEffect(() => {
         </div>
 
         <form className="composer" onSubmit={sendMessage}>
-          <div className="inputShell">
-            <MessageSquare size={21} />
-            <input
+          <div className="inputShell" style={{ alignItems: 'center' }}>
+            <MessageSquare size={21} color="#64748b" />
+            <textarea
+              ref={textareaRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
+              onKeyDown={handleKeyDown}
               placeholder="Ask a question..."
               aria-label="Question"
+              rows={1}
+              style={{
+                flex: 1,
+                maxHeight: '140px',
+                resize: 'none',
+                border: 'none',
+                outline: 'none',
+                padding: '12px 0',
+                margin: '0 8px',
+                fontFamily: 'inherit',
+                fontSize: 'inherit',
+                background: 'transparent',
+                color: 'inherit',
+                lineHeight: '1.5',
+                display: 'block'
+              }}
             />
-            <button type="submit" disabled={isLoading || !input.trim()} aria-label="Send message">
+            <button type="submit" disabled={isLoading || !input.trim() || input.length > 500} aria-label="Send message">
               <Send size={18} />
             </button>
           </div>
-          <p>Press Enter to send · Shift+Enter for new line</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginTop: '4px', padding: '0 4px' }}>
+            <p>Press Enter to send · Shift+Enter for new line</p>
+            <span style={{ color: getCounterColor(), fontWeight: input.length >= 400 ? '600' : 'normal', transition: 'color 0.2s ease' }}>
+              {input.length} / 500
+            </span>
+          </div>
         </form>
 
-<div style={{ marginTop: '30px', padding: '20px' }}>
-  <h2>📈 Daily Search Analytics</h2>
+        <div style={{ marginTop: '30px', padding: '20px' }}>
+          <h2>📈 Daily Search Analytics</h2>
 
-  <ResponsiveContainer width="100%" height={300}>
-    <LineChart data={analyticsData}>
-      <CartesianGrid strokeDasharray="3 3" />
-      <XAxis dataKey="_id.date" />
-      <YAxis />
-      <Tooltip />
-      <Line
-        type="monotone"
-        dataKey="count"
-        stroke="#2563eb"
-        strokeWidth={3}
-      />
-    </LineChart>
-  </ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={analyticsData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="_id.date" />
+              <YAxis />
+              <Tooltip />
+              <Line
+                type="monotone"
+                dataKey="count"
+                stroke="#2563eb"
+                strokeWidth={3}
+              />
+            </LineChart>
+          </ResponsiveContainer>
 
-  <p style={{ marginTop: '10px' }}>
-    Total Searches:
-    {' '}
-    {analyticsData.reduce((sum, item) => sum + item.count, 0)}
-  </p>
-</div>
+          <p style={{ marginTop: '10px' }}>
+            Total Searches:
+            {' '}
+            {analyticsData.reduce((sum, item) => sum + item.count, 0)}
+          </p>
+        </div>
 
-</section>
-</main>
+      </section>
+    </main>
   );
 }
 
-
-
-// ── View: create org form ─────────────────────────────────────────────────────
-
 function CreateOrgView({ onBack, onPublished }) {
-  const [step, setStep]               = useState('form'); // 'form' | 'review'
+  const [step, setStep]               = useState('form');
   const [form, setForm]               = useState({ name: '', description: '', domain: '', tone: 'friendly' });
   const [faqs, setFaqs]               = useState([]);
   const [generating, setGenerating]   = useState(false);
@@ -794,8 +879,6 @@ function CreateOrgView({ onBack, onPublished }) {
   );
 }
 
-// ── View: org chat (shareable link experience) ────────────────────────────────
-
 function OrgChatView({ orgId, onBack }) {
   const [org, setOrg]       = useState(null);
   const [orgError, setOrgError] = useState('');
@@ -876,14 +959,14 @@ function OrgChatView({ orgId, onBack }) {
     <main className="appShell">
       <section className="chatPanel" aria-label={`${org.name} FAQ chatbot`}>
         <header className="topBar">
-          <div className="brandBlock">
+          <div className="brandBlock" style={{ flex: 1 }}>
             <div className="brandIcon" style={{ background: '#4f46e5' }}>{org.name[0].toUpperCase()}</div>
             <div>
               <div className="titleRow"><h1>{org.name}</h1></div>
               <p>{org.domain}</p>
             </div>
           </div>
-          <div className="statusPill"><Circle size={10} fill="currentColor" />FAQ bot</div>
+          <div className="statusPill" style={{ whiteSpace: 'nowrap' }}><Circle size={10} fill="currentColor" />FAQ bot</div>
         </header>
 
         <div className="messages">
@@ -909,8 +992,6 @@ function OrgChatView({ orgId, onBack }) {
     </main>
   );
 }
-
-// ── View: success / share link ────────────────────────────────────────────────
 
 function ShareView({ orgId, orgName, onBack, onViewBot }) {
   const [copied, setCopied] = useState(false);
@@ -949,10 +1030,7 @@ function ShareView({ orgId, orgName, onBack, onViewBot }) {
   );
 }
 
-// ── Root App — view router via state ──────────────────────────────────────────
-
 function App() {
-  // Check for ?org=<id> in URL to deep-link directly to an org chat
   const params  = new URLSearchParams(window.location.search);
   const urlOrg  = params.get('org');
 
