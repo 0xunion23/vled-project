@@ -18,7 +18,12 @@ const mostAskedQuestionSchema = new mongoose.Schema(
     count: {
       type: Number,
       default: 1
-    }
+    },
+
+    embedding: {
+     type: [Number],
+     default: []
+}
   },
   {
     timestamps: true
