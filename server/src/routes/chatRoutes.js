@@ -3,15 +3,20 @@ import { answerQuestion, retrieveContext } from '../services/ragService.js';
 import { streamWithOllama, validateWithOllama } from '../services/ollamaService.js';
 import { buildFaqText } from '../services/embeddingService.js';
 import { trackQuestion } from '../services/mostAskedService.js';
+import { getMinConfidenceForQuery } from '../services/ragService.js';
 import SearchLog from '../models/SearchLog.js';
+import { env } from '../config/env.js';
 
 export const chatRouter = express.Router();
 
-// ── POST /api/chat — original non-streaming endpoint (unchanged behaviour) ────
+// ── POST /api/chat — original non-streaming endpoint (completely unchanged) ───
 chatRouter.post('/', async (req, res, next) => {
   try {
     const message = req.body?.message;
+
+    // Save search
     await SearchLog.create({ query: message });
+
     const result = await answerQuestion(message);
     res.json(result);
   } catch (error) {
@@ -20,13 +25,12 @@ chatRouter.post('/', async (req, res, next) => {
 });
 
 // ── GET /api/chat/stream — streaming endpoint via Server-Sent Events ──────────
-// Client connects with EventSource or fetch+ReadableStream.
-// The endpoint streams tokens as they're generated, then sends metadata at the end.
+// Client connects with EventSource or fetch + ReadableStream.
 //
 // SSE event format:
 //   data: {"token":"word"}        — one token from Ollama
 //   data: {"done":true}           — Ollama finished generating
-//   data: {"meta":{...}}          — confidence, answerFound, sources
+//   data: {"meta":{...}}          — confidence, answerFound, sources (sent last)
 //   data: {"error":"..."}         — on failure
 chatRouter.get('/stream', async (req, res) => {
   const message = String(req.query.message || '').trim();
@@ -44,14 +48,17 @@ chatRouter.get('/stream', async (req, res) => {
   res.flushHeaders();
 
   try {
-    // Log the search
+    // Log the search (same as POST /api/chat)
     await SearchLog.create({ query: message });
     await trackQuestion(message);
 
-    // Retrieve context (same as non-streaming path)
+    // Retrieve context — same RAG pipeline as the non-streaming path
     const results = await retrieveContext(message);
     const bestScore = results[0]?.score || 0;
-    const answerFound = bestScore >= parseFloat(process.env.MIN_CONFIDENCE || '0.45');
+
+    // Use the same dynamic confidence system as answerQuestion()
+    const minConfidence = getMinConfidenceForQuery(message);
+    const answerFound = bestScore >= minConfidence;
 
     if (results.length === 0) {
       res.write(`data: ${JSON.stringify({ token: 'No indexed FAQ knowledge base has been loaded yet. Seed or add FAQs, then run reindexing.' })}\n\n`);
@@ -77,7 +84,7 @@ chatRouter.get('/stream', async (req, res) => {
     }));
 
     if (!answerFound) {
-      // Low confidence — validate query then stream fallback message
+      // Low confidence — validate query then stream fallback message (same logic as POST)
       const validation = await validateWithOllama({ query: message, contexts });
       const fallbackText = validation.toLowerCase() === 'valid'
         ? "I don't have enough information in the FAQ knowledge base to answer that."

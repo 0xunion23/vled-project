@@ -101,7 +101,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
             </div>
           </div>
         ) : (
-          <p>{message.text}</p>
+          <p>{message.text}{message.streaming && <span style={{ display: 'inline-block', width: '2px', height: '1em', background: 'currentColor', marginLeft: '2px', verticalAlign: 'text-bottom', animation: 'blink 1s step-end infinite' }} />}</p>
         )}
         
         {isUser ? (
@@ -444,6 +444,7 @@ useEffect(() => {
           } catch { /* skip malformed SSE line */ }
         }
       }
+
       await fetchMostAskedQuestions();
     } catch (_error) {
       setMessages((c) => c.map((m) => m.id === botId
@@ -722,10 +723,10 @@ function CreateOrgView({ onBack, onPublished }) {
   if (step === 'review') {
     return (
       <main className="appShell">
-        <section className="chatPanel">
-          <header className="topBar">
+        <section className="chatPanel orgBuilderPanel">
+          <header className="topBar orgBuilderTopBar">
             <button className="backBtn" onClick={() => setStep('form')}><ArrowLeft size={16} /> Back</button>
-            <h2 style={{ margin: 0, fontSize: '1rem' }}>Review & edit FAQs</h2>
+            <h2 className="orgBuilderTitle">Review & edit FAQs</h2>
             <button className="orgCreateBtn" onClick={handlePublish} disabled={publishing || faqs.length === 0}>
               {publishing ? 'Publishing…' : `Publish ${faqs.length} FAQs`}
             </button>
@@ -757,10 +758,10 @@ function CreateOrgView({ onBack, onPublished }) {
 
   return (
     <main className="appShell">
-      <section className="chatPanel">
-        <header className="topBar">
+      <section className="chatPanel orgBuilderPanel">
+        <header className="topBar orgBuilderTopBar">
           <button className="backBtn" onClick={onBack}><ArrowLeft size={16} /> Back</button>
-          <h2 style={{ margin: 0, fontSize: '1rem' }}>Create your FAQ bot</h2>
+          <h2 className="orgBuilderTitle">Create your FAQ bot</h2>
           <div />
         </header>
 

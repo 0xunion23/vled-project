@@ -1,7 +1,8 @@
 import { env } from '../config/env.js';
 
-// ── Non-streaming generation (used internally by answerQuestion) ──────────────
-export async function generateWithOllama({ query, contexts }) {
+// ── Non-streaming generation ──────────────────────────────────────────────────
+// Used by answerQuestion in ragService.js (unchanged signature)
+export async function generateWithOllama({ query, contexts, bestscore }) {
   const contextText = contexts
     .map(
       (context, index) =>
@@ -11,7 +12,7 @@ export async function generateWithOllama({ query, contexts }) {
 
   const prompt = `You are a FAQ support chatbot.
 Answer using only the retrieved context.
-If the context only contains greetings ,say : "Hello,How can i help you today ?".
+If the context only contains greetings, say: "Hello, how can I help you today?".
 If the context does not contain the answer, say: "I do not have enough information in the FAQ knowledge base to answer that."
 Keep the answer concise and helpful.
 
@@ -43,7 +44,7 @@ Answer:`;
 }
 
 // ── Streaming generation — pipes tokens to an Express res via SSE ─────────────
-// Caller is responsible for setting SSE headers before calling this.
+// Caller sets SSE headers before calling. Streams NDJSON from Ollama line by line.
 export async function streamWithOllama({ query, contexts, res }) {
   const contextText = contexts
     .map(
@@ -54,7 +55,7 @@ export async function streamWithOllama({ query, contexts, res }) {
 
   const prompt = `You are a FAQ support chatbot.
 Answer using only the retrieved context.
-If the context only contains greetings ,say : "Hello,How can i help you today ?".
+If the context only contains greetings, say: "Hello, how can I help you today?".
 If the context does not contain the answer, say: "I do not have enough information in the FAQ knowledge base to answer that."
 Keep the answer concise and helpful.
 
@@ -99,7 +100,6 @@ Answer:`;
       try {
         const json = JSON.parse(line);
         if (json.response) {
-          // Send each token as an SSE event
           res.write(`data: ${JSON.stringify({ token: json.response })}\n\n`);
         }
         if (json.done) {
@@ -112,14 +112,14 @@ Answer:`;
   }
 }
 
-// ── Validator (unchanged) ─────────────────────────────────────────────────────
+// ── Validator (fixed prompt — clearer examples) ───────────────────────────────
 export async function validateWithOllama({ query, contexts }) {
   const prompt = `You are a validator bot.
-    invalid query example: ramdon noice
-    valid query example: specific questions slightly related to context but couldnt be answered by context. 
+Invalid query example: random noise, greetings like "hi", "hello", "ok".
+Valid query example: specific questions slightly related to context but couldn't be answered by context.
 Validate the query.
 If query is valid then return "valid"
-If query is invalid then say, "Hello,How can i help you today ?".`;
+If query is invalid then say, "Hello, how can I help you today?".`;
 
   const response = await fetch(`${env.ollamaBaseUrl}/api/generate`, {
     method: 'POST',
