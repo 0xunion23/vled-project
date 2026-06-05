@@ -8,6 +8,8 @@ import { faqRouter } from './routes/faqRoutes.js';
 import {questionReviewRouter} from './routes/questionReviewRoutes.js';
 import { mostAskedRouter } from './routes/mostAskedRoutes.js';
 import analyticsRoutes from './routes/analytics.js';
+import { preloadEmbeddingModel } from './services/embeddingService.js';
+import { warmOllamaModel } from './services/ollamaService.js';
 
 const app = express();
 
@@ -36,6 +38,15 @@ app.use((error, _req, res, _next) => {
 });
 
 await connectMongo();
+await preloadEmbeddingModel();
+console.log('Embedding model preloaded and ready.');
+
+try {
+  await warmOllamaModel();
+  console.log('Ollama model warmed and ready.');
+} catch (error) {
+  console.warn(`Ollama warmup skipped: ${error.message}`);
+}
 
 app.listen(env.port, () => {
   console.log(`RAG server listening on http://localhost:${env.port}`);
