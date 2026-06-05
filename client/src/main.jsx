@@ -456,45 +456,57 @@ function DefaultChat({ onCreateOrg }) {
     setIsLoading(true);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
+    // Add a blank bot message that fills in token-by-token as Ollama streams
+    const botId = crypto.randomUUID();
+    setMessages((c) => [...c, {
+      id: botId, role: 'assistant', text: '', answerFound: true,
+      confidence: 0, sources: [], timestamp: getTime(), streaming: true
+    }]);
+
     try {
-      const response = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
-      });
+      const response = await fetch(`${API_URL}/api/chat/stream?message=${encodeURIComponent(text)}`);
+      if (!response.ok) throw new Error('Stream request failed');
 
-      if (!response.ok) {
-        throw new Error('Request failed');
-      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullText = '';
 
-      const data = await response.json();
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: data.answer,
-          answerFound: data.answerFound,
-          confidence: data.confidence,
-          sources: data.sources,
-          timestamp: getTime()
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const json = JSON.parse(line.slice(6));
+            if (json.token) {
+              fullText += json.token;
+              setMessages((c) => c.map((m) => m.id === botId ? { ...m, text: fullText } : m));
+            }
+            if (json.meta) {
+              setMessages((c) => c.map((m) => m.id === botId
+                ? { ...m, answerFound: json.meta.answerFound, confidence: json.meta.confidence, sources: json.meta.sources, streaming: false }
+                : m
+              ));
+            }
+            if (json.error) {
+              setMessages((c) => c.map((m) => m.id === botId
+                ? { ...m, text: json.error, answerFound: false, streaming: false }
+                : m
+              ));
+            }
+          } catch { /* skip malformed SSE line */ }
         }
-      ]);
-      
+      }
       await fetchMostAskedQuestions();
     } catch (_error) {
-      setMessages((current) => [
-        ...current,
-        {
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.',
-          answerFound: false,
-          confidence: 0,
-          sources: [],
-          timestamp: getTime()
-        }
-      ]);
+      setMessages((c) => c.map((m) => m.id === botId
+        ? { ...m, text: 'The chatbot API is not reachable. Check that Express, MongoDB, and Ollama are running.', answerFound: false, streaming: false }
+        : m
+      ));
     } finally {
       setIsLoading(false);
     }
