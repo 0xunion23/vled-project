@@ -10,21 +10,17 @@ function dotProduct(left, right) {
   if (!Array.isArray(left) || !Array.isArray(right)) {
     return 0;
   }
-
   const length = Math.min(left.length, right.length);
   let score = 0;
-
   for (let index = 0; index < length; index += 1) {
     score += left[index] * right[index];
   }
-
   return score;
 }
 
 function uniqueByQuestion(results) {
   const seen = new Set();
   const uniqueResults = [];
-
   for (const result of results) {
     const key = result.faq.question.toLowerCase();
     if (!seen.has(key)) {
@@ -32,7 +28,6 @@ function uniqueByQuestion(results) {
       uniqueResults.push(result);
     }
   }
-
   return uniqueResults;
 }
 
@@ -40,7 +35,6 @@ async function getKnowledgeBase() {
   if (cachedKnowledgeBase) {
     return cachedKnowledgeBase;
   }
-
   const faqs = await Faq.find({
     isActive: true,
     embedding: { $exists: true, $ne: [] },
@@ -49,7 +43,6 @@ async function getKnowledgeBase() {
     ...faq,
     id: String(faq._id),
   }));
-
   return cachedKnowledgeBase;
 }
 
@@ -67,33 +60,77 @@ export async function embedAndSaveFaq(faq) {
 
 export async function reindexFaqs() {
   const faqs = await Faq.find({ isActive: true });
-
   for (const faq of faqs) {
     faq.embedding = await embedFaq(faq);
     await faq.save();
   }
-
   invalidateRetriever();
   return faqs.length;
 }
 
-export async function retrieveContext(query) {
+// ── Vector retrieval (original logic, extracted into own function) ─────────────
+async function vectorRetrieve(query) {
   const [queryEmbedding] = await embedTexts([query]);
   if (!Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
     return [];
   }
-
   const knowledgeBase = await getKnowledgeBase();
-
-  const ranked = knowledgeBase
+  return knowledgeBase
     .filter((faq) => Array.isArray(faq.embedding) && faq.embedding.length > 0)
-    .map((faq) => ({
-      faq,
-      score: dotProduct(queryEmbedding, faq.embedding),
-    }))
+    .map((faq) => ({ faq, score: dotProduct(queryEmbedding, faq.embedding) }))
     .sort((left, right) => right.score - left.score);
+}
 
-  return uniqueByQuestion(ranked).slice(0, env.topK);
+// ── Keyword retrieval via MongoDB $text index ─────────────────────────────────
+// The Faq model already has: faqSchema.index({ question:'text', answer:'text',
+// category:'text', tags:'text' }) — this function uses it for the first time.
+async function keywordRetrieve(query) {
+  try {
+    const docs = await Faq.find(
+      { $text: { $search: query }, isActive: true },
+      { score: { $meta: 'textScore' } }
+    )
+      .sort({ score: { $meta: 'textScore' } })
+      .lean();
+    return docs.map((faq) => ({
+      faq: { ...faq, id: String(faq._id) },
+      score: faq.score || 0,
+    }));
+  } catch {
+    // Gracefully degrade if text index not available
+    return [];
+  }
+}
+
+// ── Reciprocal Rank Fusion ────────────────────────────────────────────────────
+// Standard IR technique for merging two ranked lists.
+// RRF(d) = Σ 1/(k + rank_i(d))  where k=60 is the standard constant.
+// Items appearing high in both lists get the highest combined score.
+function reciprocalRankFusion(vectorResults, keywordResults, k = 60) {
+  const scores = new Map();
+  vectorResults.forEach((result, rank) => {
+    const id = String(result.faq._id || result.faq.id);
+    const prev = scores.get(id) || { faq: result.faq, rrfScore: 0 };
+    scores.set(id, { faq: prev.faq, rrfScore: prev.rrfScore + 1 / (k + rank + 1) });
+  });
+  keywordResults.forEach((result, rank) => {
+    const id = String(result.faq._id || result.faq.id);
+    const prev = scores.get(id) || { faq: result.faq, rrfScore: 0 };
+    scores.set(id, { faq: prev.faq, rrfScore: prev.rrfScore + 1 / (k + rank + 1) });
+  });
+  return Array.from(scores.values())
+    .sort((a, b) => b.rrfScore - a.rrfScore)
+    .map(({ faq, rrfScore }) => ({ faq, score: rrfScore }));
+}
+
+// ── Hybrid retrieval — replaces original retrieveContext ─────────────────────
+export async function retrieveContext(query) {
+  const [vectorResults, keywordResults] = await Promise.all([
+    vectorRetrieve(query),
+    keywordRetrieve(query),
+  ]);
+  const merged = reciprocalRankFusion(vectorResults, keywordResults);
+  return uniqueByQuestion(merged).slice(0, env.topK);
 }
 
 function toSource(result) {
@@ -115,6 +152,7 @@ function toContext(result) {
   };
 }
 
+// ── All helper functions below are original — untouched ───────────────────────
 function getQueryWordCount(query) {
   return String(query)
     .toLowerCase()
@@ -126,12 +164,10 @@ function getQueryWordCount(query) {
 function getMinConfidenceForQuery(query) {
   const wordCount = getQueryWordCount(query);
   const baseConfidence = env.minConfidence;
-
   if (wordCount <= 1) return Math.max(baseConfidence, 0.78);
   if (wordCount <= 2) return Math.max(baseConfidence, 0.72);
   if (wordCount <= 4) return Math.max(baseConfidence, 0.62);
   if (wordCount >= 10) return Math.max(0.45, baseConfidence - 0.05);
-
   return baseConfidence;
 }
 
@@ -147,6 +183,7 @@ function isFaqAnswer(answer) {
   return !isNotEnoughInformationAnswer(answer);
 }
 
+// ── answerQuestion — original logic, completely unchanged ─────────────────────
 export async function answerQuestion(query) {
   const normalizedQuery = String(query || "").trim();
 
@@ -160,7 +197,7 @@ export async function answerQuestion(query) {
   }
 
   await trackQuestion(normalizedQuery);
-  
+
   const results = await retrieveContext(normalizedQuery);
   const bestScore = results[0]?.score || 0;
   const minConfidence = getMinConfidenceForQuery(normalizedQuery);
