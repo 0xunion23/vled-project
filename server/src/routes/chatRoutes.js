@@ -1,40 +1,67 @@
 import express from 'express';
-import { answerQuestion, retrieveContext } from '../services/ragService.js';
+import { answerQuestion, retrieveContext, getMinConfidenceForQuery } from '../services/ragService.js';
 import { streamWithOllama, validateWithOllama } from '../services/ollamaService.js';
+import { moderateMessage, BLOCK_MESSAGES } from '../services/moderationService.js';
 import { buildFaqText } from '../services/embeddingService.js';
 import { trackQuestion } from '../services/mostAskedService.js';
 import SearchLog from '../models/SearchLog.js';
+import { env } from '../config/env.js';
 
 export const chatRouter = express.Router();
 
-// ── POST /api/chat — original, completely unchanged ───────────────────────────
+// ── POST /api/chat ────────────────────────────────────────────────────────────
+// Standard non-streaming chat. Runs moderation before anything else.
 chatRouter.post('/', async (req, res, next) => {
   try {
     const message = req.body?.message;
 
-// Save search
-await SearchLog.create({
-  query: message
-});
+    // Content moderation — blocks profanity, injection, unsafe content
+    const moderation = await moderateMessage(message);
+    if (!moderation.allowed) {
+      return res.status(400).json({
+        answer:      BLOCK_MESSAGES[moderation.reason] || BLOCK_MESSAGES.unsafe_content,
+        answerFound: false,
+        confidence:  0,
+        sources:     [],
+        blocked:     true,
+        reason:      moderation.reason,
+      });
+    }
 
-const result = await answerQuestion(message);
+    await SearchLog.create({ query: message });
+    const result = await answerQuestion(message);
     res.json(result);
   } catch (error) {
     next(error);
   }
 });
 
-// ── GET /api/chat/stream — streaming via Server-Sent Events ──────────────────
+// ── GET /api/chat/stream ──────────────────────────────────────────────────────
+// Streaming chat via Server-Sent Events. Runs moderation before streaming.
 // SSE event format:
 //   data: {"token":"word"}    — one token from Ollama
-//   data: {"done":true}       — generation complete  
-//   data: {"meta":{...}}      — confidence, answerFound, sources
+//   data: {"done":true}       — generation complete
+//   data: {"meta":{...}}      — confidence, answerFound, sources (sent last)
 //   data: {"error":"..."}     — on failure
 chatRouter.get('/stream', async (req, res) => {
   const message = String(req.query.message || '').trim();
 
   if (!message) {
     res.status(400).json({ error: 'message query param is required.' });
+    return;
+  }
+
+  // Content moderation — same layer as POST
+  const moderation = await moderateMessage(message);
+  if (!moderation.allowed) {
+    res.status(400).json({
+      answer:      BLOCK_MESSAGES[moderation.reason] || BLOCK_MESSAGES.unsafe_content,
+      answerFound: false,
+      confidence:  0,
+      sources:     [],
+      blocked:     true,
+      reason:      moderation.reason,
+    });
     return;
   }
 
@@ -49,16 +76,19 @@ chatRouter.get('/stream', async (req, res) => {
     await trackQuestion(message);
 
     const results = await retrieveContext(message);
-    const bestScore = results[0]?.score || 0;
-    const answerFound = bestScore >= parseFloat(process.env.MIN_CONFIDENCE || '0.45');
 
     if (results.length === 0) {
-      res.write(`data: ${JSON.stringify({ token: 'No indexed FAQ knowledge base has been loaded yet.' })}\n\n`);
+      res.write(`data: ${JSON.stringify({ token: 'No indexed FAQ knowledge base has been loaded yet. Seed or add FAQs, then run reindexing.' })}\n\n`);
       res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
       res.write(`data: ${JSON.stringify({ meta: { answerFound: false, confidence: 0, sources: [] } })}\n\n`);
       res.end();
       return;
     }
+
+    // Use raw vector score for confidence gating (same logic as answerQuestion)
+    const bestScore = results[0]?._vectorScore ?? results[0]?.score ?? 0;
+    const minConfidence = getMinConfidenceForQuery(message);
+    const answerFound = bestScore >= minConfidence;
 
     const contexts = results.map(r => ({
       question: r.faq.question,
