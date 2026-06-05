@@ -123,7 +123,7 @@ function getQueryWordCount(query) {
     .filter(Boolean).length;
 }
 
-function getMinConfidenceForQuery(query) {
+export function getMinConfidenceForQuery(query) {
   const wordCount = getQueryWordCount(query);
   const baseConfidence = env.minConfidence;
 
