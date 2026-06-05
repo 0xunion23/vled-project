@@ -1066,3 +1066,10 @@ textarea.formInput,
   transition: background 0.2s;
 }
 .shareCopyBtn:hover { background: #4338ca; }
+
+/* ── Content moderation blocked message ─────────────────────────────────── */
+.blockedMessage .bubble {
+  border-left: 4px solid #ef4444;
+  background: #fff5f5;
+  color: #7f1d1d;
+}

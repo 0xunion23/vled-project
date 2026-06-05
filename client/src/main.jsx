@@ -64,7 +64,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   };
 
   return (
-    <article className={`message ${isUser ? 'userMessage' : 'botMessage'}`}>
+    <article className={`message ${isUser ? 'userMessage' : 'botMessage'} ${message.blocked ? 'blockedMessage' : ''}`}>
       <div className="messageAvatar">{isUser ? <UserRound size={18} /> : <Bot size={18} />}</div>
       <div className="bubble">
         <div className="messageHeader" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
@@ -468,6 +468,8 @@ function DefaultChat({ onCreateOrg }) {
       }
 
       const data = await response.json();
+
+      // Show blocked messages with a distinct warning style
       setMessages((current) => [
         ...current,
         {
@@ -477,7 +479,8 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
-          timestamp: getTime()
+          timestamp: getTime(),
+          blocked: data.blocked || false,
         }
       ]);
       
