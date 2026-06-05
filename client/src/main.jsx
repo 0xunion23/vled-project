@@ -1,18 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
   CartesianGrid,
-  ResponsiveContainer
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
 } from 'recharts';
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download
+  ArrowLeft, Trash2, Plus, Volume2, Download, X
 } from 'lucide-react';
 import './styles.css';
 
@@ -218,7 +218,10 @@ function DefaultChat({ onCreateOrg }) {
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [analyticsData, setAnalyticsData] = useState([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState('');
 
   const [messages, setMessages] = useState([
     {
@@ -272,13 +275,6 @@ function DefaultChat({ onCreateOrg }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  useEffect(() => {
-    fetch(`${API_URL}/api/analytics/daily-searches`)
-      .then((res) => res.json())
-      .then((data) => setAnalyticsData(data))
-      .catch((err) => console.error(err));
-  }, []);
-
   function handleScroll(e) {
     const { scrollTop, scrollHeight, clientHeight } = e.target;
     const isScrolledUp = scrollHeight - scrollTop - clientHeight > 400;
@@ -287,6 +283,26 @@ function DefaultChat({ onCreateOrg }) {
 
   function scrollToBottom() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  async function openAnalytics() {
+    setShowAnalytics(true);
+    setAnalyticsLoading(true);
+    setAnalyticsError('');
+
+    try {
+      const response = await fetch(`${API_URL}/api/analytics/daily-searches`);
+      if (!response.ok) {
+        throw new Error('Failed to load analytics');
+      }
+      const data = await response.json();
+      setAnalyticsData(data);
+    } catch (error) {
+      console.error(error);
+      setAnalyticsError('Could not load analytics right now.');
+    } finally {
+      setAnalyticsLoading(false);
+    }
   }
 
   function handleRefresh() {
@@ -521,8 +537,8 @@ function DefaultChat({ onCreateOrg }) {
             </div>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'nowrap' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div className="topActions">
+            <div className="utilityStack">
               <select 
                 value={theme} 
                 onChange={(e) => setTheme(e.target.value)}
@@ -569,6 +585,10 @@ function DefaultChat({ onCreateOrg }) {
               <Circle size={10} fill="currentColor" />
               Escalation off
             </div>
+            <button className="analyticsToggleBtn" type="button" onClick={openAnalytics}>
+              <Database size={16} />
+              Analytics
+            </button>
             <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
           </div>
         </header>
@@ -702,30 +722,48 @@ function DefaultChat({ onCreateOrg }) {
           </div>
         </form>
 
-        <div style={{ marginTop: '30px', padding: '20px' }}>
-          <h2>📈 Daily Search Analytics</h2>
+        {showAnalytics && (
+          <div className="analyticsOverlay" role="dialog" aria-modal="true" aria-label="Daily search analytics">
+            <section className="analyticsPanel">
+              <div className="analyticsHeader">
+                <div>
+                  <h2>Daily Search Analytics</h2>
+                  <p>Search activity from chatbot usage</p>
+                </div>
+                <button type="button" className="analyticsCloseBtn" onClick={() => setShowAnalytics(false)} aria-label="Close analytics">
+                  <X size={20} />
+                </button>
+              </div>
 
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={analyticsData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="_id.date" />
-              <YAxis />
-              <Tooltip />
-              <Line
-                type="monotone"
-                dataKey="count"
-                stroke="#2563eb"
-                strokeWidth={3}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-
-          <p style={{ marginTop: '10px' }}>
-            Total Searches:
-            {' '}
-            {analyticsData.reduce((sum, item) => sum + item.count, 0)}
-          </p>
-        </div>
+              {analyticsLoading ? (
+                <div className="analyticsState">
+                  <Loader2 size={20} className="spin" />
+                  Loading analytics
+                </div>
+              ) : analyticsError ? (
+                <div className="analyticsState analyticsError">{analyticsError}</div>
+              ) : (
+                <>
+                  <div className="analyticsChart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={analyticsData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="_id.date" />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="count" stroke="#345df7" strokeWidth={3} dot={{ r: 4 }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="analyticsSummary">
+                    <span>Total Searches</span>
+                    <strong>{analyticsData.reduce((sum, item) => sum + item.count, 0)}</strong>
+                  </div>
+                </>
+              )}
+            </section>
+          </div>
+        )}
 
       </section>
     </main>
