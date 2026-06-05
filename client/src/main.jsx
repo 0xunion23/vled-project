@@ -32,6 +32,15 @@ const TONE_OPTIONS = [
 ];
 const getTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+const getDynamicGreeting = () => {
+  const hour = new Date().getHours();
+  let greeting = "Hi there";
+  if (hour < 12) greeting = "Good morning";
+  else if (hour < 18) greeting = "Good afternoon";
+  else greeting = "Good evening";
+  return `${greeting}! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.`;
+};
+
 function ConfidenceBadge({ found, confidence }) {
   return (
     <span className={found ? 'badge badgeFound' : 'badge badgeLow'}>
@@ -223,17 +232,22 @@ function DefaultChat({ onCreateOrg }) {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
 
-  const [messages, setMessages] = useState([
-    {
+  const [messages, setMessages] = useState(() => {
+    const saved = localStorage.getItem('chat_memory');
+    return saved ? JSON.parse(saved) : [{
       id: crypto.randomUUID(),
       role: 'assistant',
-      text: "Hi there! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.",
+      text: getDynamicGreeting(),
       answerFound: true,
       confidence: 1,
       sources: [],
       timestamp: getTime()
-    }
-  ]);
+    }];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('chat_memory', JSON.stringify(messages));
+  }, [messages]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -306,17 +320,15 @@ function DefaultChat({ onCreateOrg }) {
   }
 
   function handleRefresh() {
-    setMessages([
-      {
+    setMessages([{
         id: crypto.randomUUID(),
         role: 'assistant',
-        text: "Hi there! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.",
+        text: getDynamicGreeting(),
         answerFound: true,
         confidence: 1,
         sources: [],
         timestamp: getTime()
-      }
-    ]);
+      }]);
     setInput('');
     setIsLoading(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -518,6 +530,7 @@ function DefaultChat({ onCreateOrg }) {
 
   function useQuickPrompt(prompt) {
     setInput(prompt);
+    textareaRef.current?.focus();
   }
 
   return (
@@ -771,9 +784,9 @@ function DefaultChat({ onCreateOrg }) {
 }
 
 function CreateOrgView({ onBack, onPublished }) {
-  const [step, setStep]               = useState('form');
-  const [form, setForm]               = useState({ name: '', description: '', domain: '', tone: 'friendly' });
-  const [faqs, setFaqs]               = useState([]);
+  const [step, setStep]             = useState('form');
+  const [form, setForm]             = useState({ name: '', description: '', domain: '', tone: 'friendly' });
+  const [faqs, setFaqs]             = useState([]);
   const [generating, setGenerating]   = useState(false);
   const [publishing, setPublishing]   = useState(false);
   const [error, setError]             = useState('');
