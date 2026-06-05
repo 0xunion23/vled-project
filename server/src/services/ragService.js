@@ -72,13 +72,17 @@ export async function reindexFaqs() {
 async function vectorRetrieve(query) {
   const [queryEmbedding] = await embedTexts([query]);
   if (!Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
-    return [];
+    return { results: [], bestVectorScore: 0 };
   }
   const knowledgeBase = await getKnowledgeBase();
-  return knowledgeBase
+  const results = knowledgeBase
     .filter((faq) => Array.isArray(faq.embedding) && faq.embedding.length > 0)
     .map((faq) => ({ faq, score: dotProduct(queryEmbedding, faq.embedding) }))
     .sort((left, right) => right.score - left.score);
+  // Return bestVectorScore separately — used for confidence gating.
+  // RRF scores (~0.016) are NOT comparable to cosine similarity thresholds (0.45–0.78).
+  const bestVectorScore = results[0]?.score || 0;
+  return { results, bestVectorScore };
 }
 
 // ── Keyword retrieval via MongoDB $text index ─────────────────────────────────
@@ -125,12 +129,16 @@ function reciprocalRankFusion(vectorResults, keywordResults, k = 60) {
 
 // ── Hybrid retrieval — replaces original retrieveContext ─────────────────────
 export async function retrieveContext(query) {
-  const [vectorResults, keywordResults] = await Promise.all([
+  const [{ results: vectorResults, bestVectorScore }, keywordResults] = await Promise.all([
     vectorRetrieve(query),
     keywordRetrieve(query),
   ]);
   const merged = reciprocalRankFusion(vectorResults, keywordResults);
-  return uniqueByQuestion(merged).slice(0, env.topK);
+  const topK = uniqueByQuestion(merged).slice(0, env.topK);
+  // Attach the raw cosine similarity score to the first result so answerQuestion
+  // can use it for the confidence gate instead of the incomparable RRF score.
+  if (topK.length > 0) topK[0]._vectorScore = bestVectorScore;
+  return topK;
 }
 
 function toSource(result) {
@@ -199,10 +207,12 @@ export async function answerQuestion(query) {
   await trackQuestion(normalizedQuery);
 
   const results = await retrieveContext(normalizedQuery);
-  const bestScore = results[0]?.score || 0;
+  // Use raw vector score for confidence gating — not RRF score.
+  // RRF scores (~0.016) are not comparable to cosine similarity thresholds (0.45–0.78).
+  const bestScore = results[0]?._vectorScore ?? results[0]?.score ?? 0;
   const minConfidence = getMinConfidenceForQuery(normalizedQuery);
   const answerFound = bestScore >= minConfidence;
-  console.log(bestScore);
+  console.log(`vector score: ${bestScore}, threshold: ${minConfidence}`);
   if (results.length === 0) {
     return {
       answer:
