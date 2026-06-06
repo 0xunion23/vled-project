@@ -9,8 +9,8 @@ export const env = {
   minConfidence: Number(process.env.MIN_CONFIDENCE || 0.53),
   topK: Number(process.env.TOP_K || 4),
   ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434',
-  ollamaModel: process.env.OLLAMA_MODEL || 'gemma3:4b',
+  ollamaModel: process.env.OLLAMA_MODEL || 'llama3',
   flagEmbeddingModel: process.env.FLAG_EMBEDDING_MODEL || 'BAAI/bge-small-en-v1.5',
-  pythonBin: process.env.PYTHON_BIN || 'python3',
+ pythonBin: 'C:/Users/jsuma/AppData/Local/Programs/Python/Python314/python.exe',
   embeddingTimeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS || 30000)
 };

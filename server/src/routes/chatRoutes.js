@@ -6,6 +6,7 @@ export const chatRouter = express.Router();
 chatRouter.post('/', async (req, res, next) => {
   try {
     const message = req.body?.message;
+    
 
 // Save search
 await SearchLog.create({
@@ -15,6 +16,11 @@ await SearchLog.create({
 const result = await answerQuestion(message);
     res.json(result);
   } catch (error) {
-    next(error);
-  }
+  console.error("CHAT ERROR:", error);
+
+  res.status(500).json({
+    error: error.message,
+    stack: error.stack
+  });
+}
 });
