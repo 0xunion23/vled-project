@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
+import ReactMarkdown from 'react-markdown';
 import {
   CartesianGrid,
   Line,
@@ -12,7 +13,7 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, Menu, MoreVertical, Pin
 } from 'lucide-react';
 import './styles.css';
 
@@ -118,7 +119,9 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
             </div>
           </div>
         ) : (
-          <p style={{ whiteSpace: 'pre-wrap' }}>{message.text}</p>
+          <div className="markdown-content">
+            <ReactMarkdown>{message.text}</ReactMarkdown>
+          </div>
         )}
         
         {isUser ? (
@@ -232,6 +235,22 @@ function DefaultChat({ onCreateOrg }) {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem('current_session_id') || crypto.randomUUID());
+  const [chatSessions, setChatSessions] = useState(() => JSON.parse(localStorage.getItem('all_chat_sessions') || '[]'));
+  
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+
+  useEffect(() => {
+    function handleClickOutside() {
+      setActiveDropdown(null);
+    }
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('chat_memory');
     return saved ? JSON.parse(saved) : [{
@@ -247,7 +266,36 @@ function DefaultChat({ onCreateOrg }) {
 
   useEffect(() => {
     localStorage.setItem('chat_memory', JSON.stringify(messages));
-  }, [messages]);
+    localStorage.setItem('current_session_id', sessionId);
+
+    setChatSessions(prev => {
+      const existingIndex = prev.findIndex(s => s.id === sessionId);
+      const existingSession = existingIndex >= 0 ? prev[existingIndex] : null;
+      
+      let title = 'New Chat';
+      if (existingSession && existingSession.customTitle) {
+        title = existingSession.customTitle;
+      } else {
+        const userMessages = messages.filter(m => m.role === 'user');
+        if (userMessages.length > 0) {
+          title = userMessages[0].text.slice(0, 30) + (userMessages[0].text.length > 30 ? '...' : '');
+        }
+      }
+
+      let updated = [...prev];
+      if (existingIndex >= 0) {
+        updated[existingIndex] = { ...updated[existingIndex], messages, title, lastUpdated: Date.now() };
+      } else {
+        updated.push({ id: sessionId, messages, title, lastUpdated: Date.now(), isPinned: false });
+      }
+      localStorage.setItem('all_chat_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  }, [messages, sessionId]);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -332,6 +380,88 @@ function DefaultChat({ onCreateOrg }) {
     setInput('');
     setIsLoading(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
+  }
+
+  function startNewChat() {
+    const newId = crypto.randomUUID();
+    setSessionId(newId);
+    setMessages([{
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      text: getDynamicGreeting(),
+      answerFound: true,
+      confidence: 1,
+      sources: [],
+      timestamp: getTime()
+    }]);
+    setInput('');
+    if(window.innerWidth <= 820) setIsSidebarOpen(false);
+  }
+
+  function loadChat(id) {
+    const session = chatSessions.find(s => s.id === id);
+    if (session) {
+      setSessionId(session.id);
+      setMessages(session.messages);
+      if(window.innerWidth <= 820) setIsSidebarOpen(false);
+    }
+  }
+
+  function togglePin(id) {
+    setChatSessions(prev => {
+      const updated = prev.map(s => s.id === id ? { ...s, isPinned: !s.isPinned } : s);
+      localStorage.setItem('all_chat_sessions', JSON.stringify(updated));
+      return updated;
+    });
+  }
+
+  function deleteChat(id) {
+    const updated = chatSessions.filter(s => s.id !== id);
+    setChatSessions(updated);
+    localStorage.setItem('all_chat_sessions', JSON.stringify(updated));
+    
+    if (sessionId === id) {
+      if (updated.length > 0) {
+        const sorted = [...updated].sort((a, b) => {
+          if (a.isPinned && !b.isPinned) return -1;
+          if (!a.isPinned && b.isPinned) return 1;
+          return b.lastUpdated - a.lastUpdated;
+        });
+        setSessionId(sorted[0].id);
+        setMessages(sorted[0].messages);
+      } else {
+        const newId = crypto.randomUUID();
+        setSessionId(newId);
+        setMessages([{
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          text: getDynamicGreeting(),
+          answerFound: true,
+          confidence: 1,
+          sources: [],
+          timestamp: getTime()
+        }]);
+        setInput('');
+      }
+    }
+  }
+
+  function startRename(id, title) {
+    setEditingChatId(id);
+    setEditTitle(title);
+  }
+
+  function saveRename(id) {
+    if (!editTitle.trim()) {
+      setEditingChatId(null);
+      return;
+    }
+    setChatSessions(prev => {
+      const updated = prev.map(s => s.id === id ? { ...s, title: editTitle, customTitle: editTitle } : s);
+      localStorage.setItem('all_chat_sessions', JSON.stringify(updated));
+      return updated;
+    });
+    setEditingChatId(null);
   }
 
   function exportChatTranscript() {
@@ -536,8 +666,78 @@ function DefaultChat({ onCreateOrg }) {
   return (
     <main className="appShell">
       <section className="chatPanel" aria-label="RAG chatbot" style={{ position: 'relative' }}>
+        
+        <div className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+          <div className="sidebar-header">
+            <button className="hamburgerBtn" onClick={() => setIsSidebarOpen(false)} style={{ marginBottom: '12px', alignSelf: 'flex-start' }}>
+              <Menu size={24} />
+            </button>
+            <button className="new-chat-btn" onClick={startNewChat}>
+              <Plus size={16} /> New Chat
+            </button>
+          </div>
+          <div className="sidebar-chat-list">
+            {[...chatSessions].sort((a, b) => {
+              if (a.isPinned && !b.isPinned) return -1;
+              if (!a.isPinned && b.isPinned) return 1;
+              return b.lastUpdated - a.lastUpdated;
+            }).map(session => (
+              <div key={session.id} className="sidebar-chat-item-wrapper">
+                <button 
+                  className={`sidebar-chat-item ${session.id === sessionId ? 'active' : ''}`} 
+                  onClick={() => loadChat(session.id)}
+                >
+                  <MessageSquare size={14} style={{ flexShrink: 0 }} />
+                  {editingChatId === session.id ? (
+                    <input
+                      autoFocus
+                      value={editTitle}
+                      onChange={e => setEditTitle(e.target.value)}
+                      onBlur={() => saveRename(session.id)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveRename(session.id); }}
+                      onClick={e => e.stopPropagation()}
+                      className="rename-input"
+                    />
+                  ) : (
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {session.isPinned && <Pin size={12} />}
+                      {session.title}
+                    </span>
+                  )}
+                </button>
+                
+                {!editingChatId && (
+                  <button
+                    className={`chat-options-btn ${activeDropdown === session.id ? 'show' : ''}`}
+                    onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === session.id ? null : session.id); }}
+                  >
+                    <MoreVertical size={14} />
+                  </button>
+                )}
+
+                {activeDropdown === session.id && (
+                  <div className="chat-dropdown">
+                    <button onClick={(e) => { e.stopPropagation(); togglePin(session.id); setActiveDropdown(null); }}>
+                      <Pin size={14} /> {session.isPinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); startRename(session.id, session.title); setActiveDropdown(null); }}>
+                      <Pencil size={14} /> Rename
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteChat(session.id); setActiveDropdown(null); }} style={{ color: '#ef4444' }}>
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         <header className="topBar">
           <div className="brandBlock" style={{ flex: 1 }}>
+            <button className="hamburgerBtn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+              <Menu size={24} />
+            </button>
             <div className="brandIcon">
               <Bot size={22} />
             </div>
@@ -581,8 +781,8 @@ function DefaultChat({ onCreateOrg }) {
               </button>
 
               <button 
-                onClick={handleRefresh}
-                title="Clear conversation"
+                onClick={openAnalytics}
+                title="View Analytics"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
                   padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
@@ -590,7 +790,7 @@ function DefaultChat({ onCreateOrg }) {
                   fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
                 }}
               >
-                <RefreshCw size={12} /> Refresh Chat
+                <Database size={12} /> Analytics
               </button>
             </div>
 
@@ -598,10 +798,6 @@ function DefaultChat({ onCreateOrg }) {
               <Circle size={10} fill="currentColor" />
               Escalation off
             </div>
-            <button className="analyticsToggleBtn" type="button" onClick={openAnalytics}>
-              <Database size={16} />
-              Analytics
-            </button>
             <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
           </div>
         </header>
