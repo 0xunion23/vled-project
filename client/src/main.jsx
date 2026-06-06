@@ -41,7 +41,7 @@ function ConfidenceBadge({ found, confidence }) {
   );
 }
 
-function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
+function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt, onRelatedQuestion }) {
   const isUser = message.role === 'user';
   const [vote, setVote] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -110,6 +110,21 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
           </div>
         ) : (
           <p style={{ whiteSpace: 'pre-wrap' }}>{message.text}</p>
+        )}
+
+        {!isUser && message.relatedQuestions?.length > 0 && (
+          <div className="relatedQuestions">
+            <strong>Related Questions:</strong>
+            <ul>
+              {message.relatedQuestions.map((question) => (
+                <li key={question}>
+                  <button type="button" onClick={() => onRelatedQuestion?.(question)}>
+                    {question}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
         
         {isUser ? (
@@ -366,6 +381,7 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          relatedQuestions: data.relatedQuestions || [],
           timestamp: getTime()
         }
       ]);
@@ -382,6 +398,7 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: false,
           confidence: 0,
           sources: [],
+          relatedQuestions: [],
           timestamp: getTime()
         }
       ]);
@@ -423,6 +440,7 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          relatedQuestions: data.relatedQuestions || [],
           timestamp: getTime()
         }
       ]);
@@ -438,6 +456,7 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: false,
           confidence: 0,
           sources: [],
+          relatedQuestions: [],
           timestamp: getTime()
         }
       ]);
@@ -446,10 +465,9 @@ function DefaultChat({ onCreateOrg }) {
     }
   }
 
-  async function sendMessage(event) {
-    if (event) event.preventDefault();
-    const text = input.trim();
-    if (!text || isLoading || input.length > 500) return;
+  async function sendQuestion(question) {
+    const text = String(question || '').trim();
+    if (!text || isLoading || text.length > 500) return;
 
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
     setInput('');
@@ -477,6 +495,7 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          relatedQuestions: data.relatedQuestions || [],
           timestamp: getTime()
         }
       ]);
@@ -492,12 +511,23 @@ function DefaultChat({ onCreateOrg }) {
           answerFound: false,
           confidence: 0,
           sources: [],
+          relatedQuestions: [],
           timestamp: getTime()
         }
       ]);
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function sendMessage(event) {
+    if (event) event.preventDefault();
+    await sendQuestion(input);
+  }
+
+  function sendRelatedQuestion(question) {
+    setInput(question);
+    sendQuestion(question);
   }
 
   function useQuickPrompt(prompt) {
@@ -583,7 +613,8 @@ function DefaultChat({ onCreateOrg }) {
                 message={message} 
                 isLatestBotMessage={isLatestBotMessage}
                 onRegenerate={handleRegenerate}
-                onEditPrompt={handleEditPrompt} 
+                onEditPrompt={handleEditPrompt}
+                onRelatedQuestion={sendRelatedQuestion}
               />
             );
           })}
