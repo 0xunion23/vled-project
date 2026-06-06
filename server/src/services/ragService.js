@@ -45,6 +45,7 @@ async function getKnowledgeBase() {
     isActive: true,
     embedding: { $exists: true, $ne: [] },
   }).lean();
+  console.log("FAQs loaded:", faqs.length);
   cachedKnowledgeBase = faqs.map((faq) => ({
     ...faq,
     id: String(faq._id),

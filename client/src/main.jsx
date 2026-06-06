@@ -15,8 +15,7 @@ import {
   ArrowLeft, Trash2, Plus, Volume2, Download, X
 } from 'lucide-react';
 import './styles.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const QUICK_PROMPTS = [
   'Who can sign the NOC?',
   'Is there a stipend?',

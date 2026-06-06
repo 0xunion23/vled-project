@@ -8,6 +8,7 @@ import { faqRouter } from './routes/faqRoutes.js';
 import {questionReviewRouter} from './routes/questionReviewRoutes.js';
 import { mostAskedRouter } from './routes/mostAskedRoutes.js';
 import analyticsRoutes from './routes/analytics.js';
+import historyRoutes from './routes/history.js';
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use('/api/chat', chatRouter);
 app.use('/api/orgs', orgRouter);
 app.use('/api/faqs', faqRouter);
 app.use('/api/most-asked', mostAskedRouter);
+app.use('/api/history', historyRoutes);
 app.use('/api/analytics', analyticsRoutes);
 
 
