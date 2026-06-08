@@ -8,6 +8,7 @@ import { faqRouter } from './routes/faqRoutes.js';
 import {questionReviewRouter} from './routes/questionReviewRoutes.js';
 import { mostAskedRouter } from './routes/mostAskedRoutes.js';
 import analyticsRoutes from './routes/analytics.js';
+import suggestionRoutes from './routes/suggestionRoutes.js';
 import { preloadEmbeddingModel } from './services/embeddingService.js';
 import { warmOllamaModel } from './services/ollamaService.js';
 
@@ -19,6 +20,9 @@ app.use(
   '/api/question-review',
   questionReviewRouter
 );
+
+app.use('/api/suggestions', suggestionRoutes);
+
 app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
