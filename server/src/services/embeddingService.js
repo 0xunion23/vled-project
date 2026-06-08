@@ -109,6 +109,10 @@ async function getWorker() {
   return worker;
 }
 
+export async function preloadEmbeddingModel() {
+  await getWorker();
+}
+
 export async function embedTexts(texts) {
   if (!Array.isArray(texts) || texts.length === 0) {
     return [];
