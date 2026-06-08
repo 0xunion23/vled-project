@@ -136,15 +136,27 @@ function getMinConfidenceForQuery(query) {
 }
 
 function isNotEnoughInformationAnswer(answer) {
-  return String(answer || "")
+  const normalizedAnswer = String(answer || "")
     .toLowerCase()
     .replace(/\s+/g, " ")
-    .trim()
-    .includes("i do not have enough information in the faq knowledge base to answer that");
+    .trim();
+
+  return normalizedAnswer === "i do not have enough information in the faq knowledge base to answer that.";
 }
 
 function isFaqAnswer(answer) {
   return !isNotEnoughInformationAnswer(answer);
+}
+
+function trackQuestionInBackground(query) {
+  trackQuestion(query).catch((error) => {
+    console.error('Failed to track most asked question:', error);
+  });
+}
+
+function returnWithTracking(query, result) {
+  trackQuestionInBackground(query);
+  return result;
 }
 
 export async function answerQuestion(query) {
@@ -159,40 +171,38 @@ export async function answerQuestion(query) {
     };
   }
 
-  await trackQuestion(normalizedQuery);
-  
   const results = await retrieveContext(normalizedQuery);
   const bestScore = results[0]?.score || 0;
   const minConfidence = getMinConfidenceForQuery(normalizedQuery);
   const answerFound = bestScore >= minConfidence;
-  console.log(bestScore);
+
   if (results.length === 0) {
-    return {
+    return returnWithTracking(normalizedQuery, {
       answer:
         "No indexed FAQ knowledge base has been loaded yet. Seed or add FAQs, then run reindexing.",
       answerFound: false,
       confidence: 0,
       sources: [],
-    };
+    });
   }
   const contexts = results.map(toContext);
   if (!answerFound) {
     const answer = await validateWithOllama({ query: normalizedQuery, contexts });
     if (answer.toLowerCase() === "valid") {
-      return {
+      return returnWithTracking(normalizedQuery, {
         answer:
           "I don't have enough information in the FAQ knowledge base to answer that.",
         answerFound: false,
         confidence: bestScore,
         sources: results.map(toSource),
-      };
+      });
     } else {
-      return {
+      return returnWithTracking(normalizedQuery, {
         answer,
         answerFound: isFaqAnswer(answer),
         confidence: bestScore,
         sources: results.map(toSource),
-      };
+      });
     }
   }
   const answer = await generateWithOllama({
@@ -201,10 +211,10 @@ export async function answerQuestion(query) {
     bestscore: bestScore,
   });
 
-  return {
+  return returnWithTracking(normalizedQuery, {
     answer,
     answerFound: isFaqAnswer(answer),
     confidence: bestScore,
     sources: results.map(toSource),
-  };
+  });
 }
