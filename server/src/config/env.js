@@ -16,5 +16,6 @@ export const env = {
   ollamaWarmupTimeoutMs: Number(process.env.OLLAMA_WARMUP_TIMEOUT_MS || 20000),
   flagEmbeddingModel: process.env.FLAG_EMBEDDING_MODEL || 'BAAI/bge-small-en-v1.5',
   pythonBin: process.env.PYTHON_BIN || 'python3',
-  embeddingTimeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS || 30000)
+  embeddingTimeoutMs: Number(process.env.EMBEDDING_TIMEOUT_MS || 30000),
+  jwtSecret: process.env.JWT_SECRET || 'change-this-secret-in-production'
 };

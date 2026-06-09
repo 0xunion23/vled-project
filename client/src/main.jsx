@@ -12,11 +12,14 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert,
+  LogIn, LogOut, UserCircle
 } from 'lucide-react';
 import './styles.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const AUTH_KEY = 'oxengine_token';
+
 const QUICK_PROMPTS = [
   'Who can sign the NOC?',
   'Is there a stipend?',
@@ -224,7 +227,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   );
 }
 
-function DefaultChat({ onCreateOrg }) {
+function DefaultChat({ onCreateOrg, user, onLogout, onQueryUsed }) {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -428,15 +431,17 @@ function DefaultChat({ onCreateOrg }) {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem(AUTH_KEY);
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ message: newText })
       });
 
       if (!response.ok) throw new Error('Request failed');
 
       const data = await response.json();
+      if (typeof data.queriesRemaining === 'number') onQueryUsed(data.queriesRemaining);
       setMessages((current) => [
         ...current,
         {
@@ -485,15 +490,17 @@ function DefaultChat({ onCreateOrg }) {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem(AUTH_KEY);
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ message: lastUserText })
       });
 
       if (!response.ok) throw new Error('Request failed');
 
       const data = await response.json();
+      if (typeof data.queriesRemaining === 'number') onQueryUsed(data.queriesRemaining);
       setMessages((current) => [
         ...current,
         {
@@ -557,17 +564,37 @@ function DefaultChat({ onCreateOrg }) {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
+      const token = localStorage.getItem(AUTH_KEY);
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ message: text })
       });
+
+      if (response.status === 429) {
+        const data = await response.json();
+        setMessages((current) => [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            text: data.message,
+            answerFound: false,
+            confidence: 0,
+            sources: [],
+            timestamp: getTime()
+          }
+        ]);
+        setIsLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         throw new Error('Request failed');
       }
 
       const data = await response.json();
+      if (typeof data.queriesRemaining === 'number') onQueryUsed(data.queriesRemaining);
       setMessages((current) => [
         ...current,
         {
@@ -676,6 +703,16 @@ function DefaultChat({ onCreateOrg }) {
               Admin Panel
             </button>
             <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
+            <div className="userBlock">
+              <UserCircle size={16} />
+              <span className="userName">{user?.username}</span>
+              <span className={`queryCounter ${user?.queriesRemaining <= 5 ? 'queryCounterLow' : ''}`}>
+                {user?.queriesRemaining ?? 20}/20
+              </span>
+              <button className="logoutBtn" onClick={onLogout} title="Sign out">
+                <LogOut size={14} /> Sign out
+              </button>
+            </div>
           </div>
         </header>
 
@@ -1299,13 +1336,175 @@ function ShareView({ orgId, orgName, onBack, onViewBot }) {
   );
 }
 
-function App() {
-  const params  = new URLSearchParams(window.location.search);
-  const urlOrg  = params.get('org');
+// ── LoginView ────────────────────────────────────────────────────────────────
+function LoginView({ onLogin, onGoRegister }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
 
-  const [view, setView]         = useState(urlOrg ? 'orgChat' : 'home');
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_URL}/api/auth/login`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || 'Login failed.'); return; }
+      localStorage.setItem(AUTH_KEY, data.token);
+      onLogin(data.user);
+    } catch {
+      setError('Could not reach the server. Check that Express is running.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="appShell authShell">
+      <section className="authCard">
+        <div className="authLogo"><Bot size={32} /><span>OxEngine</span></div>
+        <h1 className="authTitle">Welcome back</h1>
+        <p className="authSubtitle">Sign in to continue. You get 20 queries per day.</p>
+        {error && <p className="authError">{error}</p>}
+        <form className="authForm" onSubmit={handleSubmit}>
+          <div className="authField">
+            <label>Username</label>
+            <input value={username} onChange={e => setUsername(e.target.value)}
+              placeholder="Enter your username" required autoFocus />
+          </div>
+          <div className="authField">
+            <label>Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="Enter your password" required />
+          </div>
+          <button type="submit" className="authSubmitBtn" disabled={loading}>
+            {loading ? <><Loader2 size={16} className="spin" /> Signing in…</> : <><LogIn size={16} /> Sign in</>}
+          </button>
+        </form>
+        <p className="authSwitch">
+          Don't have an account?{' '}
+          <button type="button" onClick={onGoRegister}>Create one</button>
+        </p>
+      </section>
+    </main>
+  );
+}
+
+// ── RegisterView ──────────────────────────────────────────────────────────────
+function RegisterView({ onLogin, onGoLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirm,  setConfirm]  = useState('');
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (password !== confirm) { setError('Passwords do not match.'); return; }
+    setLoading(true);
+    try {
+      const res  = await fetch(`${API_URL}/api/auth/register`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.message || 'Registration failed.'); return; }
+      localStorage.setItem(AUTH_KEY, data.token);
+      onLogin(data.user);
+    } catch {
+      setError('Could not reach the server. Check that Express is running.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <main className="appShell authShell">
+      <section className="authCard">
+        <div className="authLogo"><Bot size={32} /><span>OxEngine</span></div>
+        <h1 className="authTitle">Create account</h1>
+        <p className="authSubtitle">Get started. Each account gets 20 queries per day.</p>
+        {error && <p className="authError">{error}</p>}
+        <form className="authForm" onSubmit={handleSubmit}>
+          <div className="authField">
+            <label>Username</label>
+            <input value={username} onChange={e => setUsername(e.target.value)}
+              placeholder="Choose a username (3–32 chars)" required autoFocus minLength={3} maxLength={32} />
+          </div>
+          <div className="authField">
+            <label>Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="At least 6 characters" required minLength={6} />
+          </div>
+          <div className="authField">
+            <label>Confirm password</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              placeholder="Repeat your password" required />
+          </div>
+          <button type="submit" className="authSubmitBtn" disabled={loading}>
+            {loading ? <><Loader2 size={16} className="spin" /> Creating account…</> : 'Create account'}
+          </button>
+        </form>
+        <p className="authSwitch">
+          Already have an account?{' '}
+          <button type="button" onClick={onGoLogin}>Sign in</button>
+        </p>
+      </section>
+    </main>
+  );
+}
+
+// ── App — auth-aware root router ──────────────────────────────────────────────
+function App() {
+  const params = new URLSearchParams(window.location.search);
+  const urlOrg = params.get('org');
+
+  const [authView, setAuthView]   = useState('login'); // 'login' | 'register'
+  const [user, setUser]           = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  const [view, setView]               = useState(urlOrg ? 'orgChat' : 'home');
   const [activeOrgId, setActiveOrgId] = useState(urlOrg || null);
   const [activeOrgName, setActiveOrgName] = useState('');
+
+  // On mount, check if there's a valid token already stored
+  useEffect(() => {
+    const token = localStorage.getItem(AUTH_KEY);
+    if (!token) { setAuthChecked(true); return; }
+    fetch(`${API_URL}/api/auth/me`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.user) setUser(data.user);
+        else localStorage.removeItem(AUTH_KEY);
+      })
+      .catch(() => localStorage.removeItem(AUTH_KEY))
+      .finally(() => setAuthChecked(false));
+    setAuthChecked(true);
+  }, []);
+
+  function handleLogin(userData) {
+    setUser(userData);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem(AUTH_KEY);
+    setUser(null);
+    setView('home');
+    setAuthView('login');
+  }
+
+  function handleQueryUsed(remaining) {
+    setUser(u => u ? { ...u, queriesRemaining: remaining } : u);
+  }
 
   function handlePublished(orgId, orgName) {
     setActiveOrgId(orgId);
@@ -1313,7 +1512,16 @@ function App() {
     setView('share');
   }
 
-  if (view === 'home')    return <DefaultChat onCreateOrg={() => setView('create')} />;
+  if (!authChecked) return null;
+
+  // Not logged in → show auth screens
+  if (!user) {
+    if (authView === 'register') return <RegisterView onLogin={handleLogin} onGoLogin={() => setAuthView('login')} />;
+    return <LoginView onLogin={handleLogin} onGoRegister={() => setAuthView('register')} />;
+  }
+
+  // Logged in → normal app
+  if (view === 'home')    return <DefaultChat onCreateOrg={() => setView('create')} user={user} onLogout={handleLogout} onQueryUsed={handleQueryUsed} />;
   if (view === 'create')  return <CreateOrgView onBack={() => setView('home')} onPublished={handlePublished} />;
   if (view === 'share')   return <ShareView orgId={activeOrgId} orgName={activeOrgName} onBack={() => setView('home')} onViewBot={() => setView('orgChat')} />;
   if (view === 'orgChat') return <OrgChatView orgId={activeOrgId} onBack={() => setView('home')} />;

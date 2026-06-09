@@ -3,6 +3,7 @@ import express from 'express';
 import { env } from './config/env.js';
 import { connectMongo } from './db/mongoose.js';
 import { chatRouter } from './routes/chatRoutes.js';
+import { authRouter } from './routes/authRoutes.js';
 import { orgRouter } from './routes/orgRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
 import {questionReviewRouter} from './routes/questionReviewRoutes.js';
@@ -27,6 +28,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.use('/api/auth', authRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/orgs', orgRouter);
 app.use('/api/faqs', faqRouter);
