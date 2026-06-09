@@ -12,17 +12,11 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert, LogOut, Mail, Lock, ChevronDown
 } from 'lucide-react';
 import './styles.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const QUICK_PROMPTS = [
-  'Who can sign the NOC?',
-  'Is there a stipend?',
-  'How long is the internship?',
-  'How do I log in to ViBe?'
-];
 
 const TONE_OPTIONS = [
   { value: 'friendly',  label: 'Friendly' },
@@ -41,12 +35,127 @@ const getDynamicGreeting = () => {
   return `${greeting}! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.`;
 };
 
-function ConfidenceBadge({ found, confidence }) {
+function AuthView({ onAuthenticated }) {
+  const [mode, setMode] = useState('login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          password
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Authentication failed.');
+      }
+
+      onAuthenticated(data);
+    } catch (authError) {
+      setError(authError.message || 'Authentication failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setError('');
+  }
+
   return (
-    <span className={found ? 'badge badgeFound' : 'badge badgeLow'}>
-      <Circle size={8} fill="currentColor" />
-      {found ? `${Math.round(confidence * 100)}% match` : 'Low confidence'}
-    </span>
+    <main className="appShell authShell">
+      <section className="authCard" aria-label="Account access">
+        <div className="authBrand">
+          <div className="brandIcon">
+            <Bot size={24} />
+          </div>
+          <div>
+            <h1>FAQ OxEngine</h1>
+            <p>Sign in to chat with the FAQ assistant.</p>
+          </div>
+        </div>
+
+        <div className="authTabs" role="tablist" aria-label="Authentication mode">
+          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>
+            Login
+          </button>
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>
+            Register
+          </button>
+        </div>
+
+        <form className="authForm" onSubmit={handleSubmit}>
+          {mode === 'register' && (
+            <label className="authField">
+              <span>Name</span>
+              <div>
+                <UserRound size={18} />
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  autoComplete="name"
+                  required
+                />
+              </div>
+            </label>
+          )}
+
+          <label className="authField">
+            <span>Email</span>
+            <div>
+              <Mail size={18} />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </div>
+          </label>
+
+          <label className="authField">
+            <span>Password</span>
+            <div>
+              <Lock size={18} />
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Minimum 6 characters"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                minLength={6}
+                required
+              />
+            </div>
+          </label>
+
+          {error && <p className="authError">{error}</p>}
+
+          <button type="submit" className="authSubmit" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 size={18} className="spin" /> : null}
+            {mode === 'register' ? 'Create account' : 'Login'}
+          </button>
+        </form>
+      </section>
+    </main>
   );
 }
 
@@ -79,9 +188,6 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
         <div className="messageHeader" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
           <strong>{isUser ? 'You' : 'OxEngine'}</strong>
           <span style={{ fontSize: '11px', color: '#94a3b8' }}>{message.timestamp}</span>
-          {!isUser && message.confidence !== undefined && (
-            <ConfidenceBadge found={message.answerFound} confidence={message.confidence} />
-          )}
         </div>
 
         {!isUser && message.answerFound === false && (
@@ -209,28 +315,19 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
           </div>
         )}
 
-        {!isUser && message.sources?.length > 0 && (
-          <div className="sources">
-            {message.sources.map((source) => (
-              <span key={source.id}>
-                <Database size={13} />
-                {source.category}: {source.question}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </article>
   );
 }
 
-function DefaultChat({ onCreateOrg }) {
+function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const [mostAskedQuestions, setMostAskedQuestions] = useState([]);
+  const [showMostAsked, setShowMostAsked] = useState(false);
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -430,10 +527,17 @@ function DefaultChat({ onCreateOrg }) {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
         body: JSON.stringify({ message: newText })
       });
 
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
       if (!response.ok) throw new Error('Request failed');
 
       const data = await response.json();
@@ -487,10 +591,17 @@ function DefaultChat({ onCreateOrg }) {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
         body: JSON.stringify({ message: lastUserText })
       });
 
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
       if (!response.ok) throw new Error('Request failed');
 
       const data = await response.json();
@@ -559,10 +670,17 @@ function DefaultChat({ onCreateOrg }) {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
         body: JSON.stringify({ message: text })
       });
 
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
       if (!response.ok) {
         throw new Error('Request failed');
       }
@@ -610,7 +728,7 @@ function DefaultChat({ onCreateOrg }) {
     <main className="appShell">
       <section className="chatPanel" aria-label="RAG chatbot" style={{ position: 'relative' }}>
         <header className="topBar">
-          <div className="brandBlock" style={{ flex: 1 }}>
+          <div className="brandBlock">
             <div className="brandIcon">
               <Bot size={22} />
             </div>
@@ -626,14 +744,10 @@ function DefaultChat({ onCreateOrg }) {
           <div className="topActions">
             <div className="utilityStack">
               <select 
+                className="utilityAction themeSelect"
                 value={theme} 
                 onChange={(e) => setTheme(e.target.value)}
                 title="Change color theme"
-                style={{
-                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
-                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
-                  fontWeight: '500', outline: 'none', whiteSpace: 'nowrap', width: '100%'
-                }}
               >
                 <option value="auto">💻 Auto</option>
                 <option value="light">☀️ Light</option>
@@ -641,33 +755,23 @@ function DefaultChat({ onCreateOrg }) {
               </select>
 
               <button 
+                className="utilityAction"
                 onClick={exportChatTranscript}
                 title="Export chat transcript"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
-                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
-                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
-                  fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
-                }}
               >
                 <Download size={12} /> Export Chat
               </button>
 
               <button 
+                className="utilityAction"
                 onClick={handleRefresh}
                 title="Clear conversation"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
-                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
-                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
-                  fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
-                }}
               >
                 <RefreshCw size={12} /> Refresh Chat
               </button>
             </div>
 
-            <div className="statusPill" style={{ whiteSpace: 'nowrap' }}>
+            <div className="statusPill">
               <Circle size={10} fill="currentColor" />
               Escalation off
             </div>
@@ -675,7 +779,13 @@ function DefaultChat({ onCreateOrg }) {
               <ShieldAlert size={16} />
               Admin Panel
             </button>
-            <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
+            <button className="orgCreateBtn" onClick={onCreateOrg}>✨ Create FAQ Bot</button>
+            <div className="userMenu">
+              <span>{authUser?.name || 'User'}</span>
+              <button type="button" onClick={onLogout} title="Log out">
+                <LogOut size={15} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -736,38 +846,36 @@ function DefaultChat({ onCreateOrg }) {
         </button>
 
         {mostAskedQuestions.length > 0 && (
-          <div className="mostAskedSection" aria-label="Most Asked Questions">
-            <h3
-              style={{
-                width: '100%',
-                margin: '0 0 10px 0',
-                color: '#64748b',
-                fontSize: '14px',
-                fontWeight: '700'
-              }}
-            >
-              Most Asked Questions (Top 20)
-            </h3>
-
-            {mostAskedQuestions.map((question) => (
+          <div className={`mostAskedSection ${showMostAsked ? 'isExpanded' : 'isCollapsed'}`} aria-label="Most Asked Questions">
+            <div className="mostAskedHeader">
+              <h3>Most Asked Questions</h3>
+              <span>{mostAskedQuestions.length} tracked</span>
               <button
-                key={question._id || question.normalizedQuestion}
+                className="mostAskedToggle"
                 type="button"
-                onClick={() => useQuickPrompt(question.displayQuestion)}
+                onClick={() => setShowMostAsked((current) => !current)}
+                aria-expanded={showMostAsked}
               >
-                {question.displayQuestion} ({question.count})
+                {showMostAsked ? 'Hide' : 'Show'}
+                <ChevronDown size={16} />
               </button>
-            ))}
+            </div>
+
+            {showMostAsked && (
+              <div className="mostAskedList">
+                {mostAskedQuestions.map((question) => (
+                  <button
+                    key={question._id || question.normalizedQuestion}
+                    type="button"
+                    onClick={() => useQuickPrompt(question.displayQuestion)}
+                  >
+                    {question.displayQuestion} ({question.count})
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
-
-        <div className="quickPrompts" aria-label="Suggested questions">
-          {QUICK_PROMPTS.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => useQuickPrompt(prompt)}>
-              {prompt}
-            </button>
-          ))}
-        </div>
 
         <form className="composer" onSubmit={sendMessage}>
          <div
@@ -1306,6 +1414,11 @@ function App() {
   const [view, setView]         = useState(urlOrg ? 'orgChat' : 'home');
   const [activeOrgId, setActiveOrgId] = useState(urlOrg || null);
   const [activeOrgName, setActiveOrgName] = useState('');
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('auth_token') || '');
+  const [authUser, setAuthUser] = useState(() => {
+    const savedUser = localStorage.getItem('auth_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
   function handlePublished(orgId, orgName) {
     setActiveOrgId(orgId);
@@ -1313,7 +1426,33 @@ function App() {
     setView('share');
   }
 
-  if (view === 'home')    return <DefaultChat onCreateOrg={() => setView('create')} />;
+  function handleAuthenticated({ token, user }) {
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    setAuthToken(token);
+    setAuthUser(user);
+  }
+
+  async function handleLogout() {
+    if (authToken) {
+      fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      }).catch(() => {});
+    }
+
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    setAuthToken('');
+    setAuthUser(null);
+    setView(urlOrg ? 'orgChat' : 'home');
+  }
+
+  if (!urlOrg && !authToken) return <AuthView onAuthenticated={handleAuthenticated} />;
+
+  if (view === 'home')    return <DefaultChat onCreateOrg={() => setView('create')} authToken={authToken} authUser={authUser} onLogout={handleLogout} />;
   if (view === 'create')  return <CreateOrgView onBack={() => setView('home')} onPublished={handlePublished} />;
   if (view === 'share')   return <ShareView orgId={activeOrgId} orgName={activeOrgName} onBack={() => setView('home')} onViewBot={() => setView('orgChat')} />;
   if (view === 'orgChat') return <OrgChatView orgId={activeOrgId} onBack={() => setView('home')} />;
