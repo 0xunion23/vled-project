@@ -12,17 +12,11 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert, LogOut, Mail, Lock
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert, LogOut, Mail, Lock, ChevronDown
 } from 'lucide-react';
 import './styles.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
-const QUICK_PROMPTS = [
-  'Who can sign the NOC?',
-  'Is there a stipend?',
-  'How long is the internship?',
-  'How do I log in to ViBe?'
-];
 
 const TONE_OPTIONS = [
   { value: 'friendly',  label: 'Friendly' },
@@ -165,15 +159,6 @@ function AuthView({ onAuthenticated }) {
   );
 }
 
-function ConfidenceBadge({ found, confidence }) {
-  return (
-    <span className={found ? 'badge badgeFound' : 'badge badgeLow'}>
-      <Circle size={8} fill="currentColor" />
-      {found ? `${Math.round(confidence * 100)}% match` : 'Low confidence'}
-    </span>
-  );
-}
-
 function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   const isUser = message.role === 'user';
   const [vote, setVote] = useState(null);
@@ -203,9 +188,6 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
         <div className="messageHeader" style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
           <strong>{isUser ? 'You' : 'OxEngine'}</strong>
           <span style={{ fontSize: '11px', color: '#94a3b8' }}>{message.timestamp}</span>
-          {!isUser && message.confidence !== undefined && (
-            <ConfidenceBadge found={message.answerFound} confidence={message.confidence} />
-          )}
         </div>
 
         {!isUser && message.answerFound === false && (
@@ -333,16 +315,6 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
           </div>
         )}
 
-        {!isUser && message.sources?.length > 0 && (
-          <div className="sources">
-            {message.sources.map((source) => (
-              <span key={source.id}>
-                <Database size={13} />
-                {source.category}: {source.question}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </article>
   );
@@ -355,6 +327,7 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const [mostAskedQuestions, setMostAskedQuestions] = useState([]);
+  const [showMostAsked, setShowMostAsked] = useState(false);
   
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'auto');
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -755,7 +728,7 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
     <main className="appShell">
       <section className="chatPanel" aria-label="RAG chatbot" style={{ position: 'relative' }}>
         <header className="topBar">
-          <div className="brandBlock" style={{ flex: 1 }}>
+          <div className="brandBlock">
             <div className="brandIcon">
               <Bot size={22} />
             </div>
@@ -771,14 +744,10 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           <div className="topActions">
             <div className="utilityStack">
               <select 
+                className="utilityAction themeSelect"
                 value={theme} 
                 onChange={(e) => setTheme(e.target.value)}
                 title="Change color theme"
-                style={{
-                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
-                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
-                  fontWeight: '500', outline: 'none', whiteSpace: 'nowrap', width: '100%'
-                }}
               >
                 <option value="auto">💻 Auto</option>
                 <option value="light">☀️ Light</option>
@@ -786,33 +755,23 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
               </select>
 
               <button 
+                className="utilityAction"
                 onClick={exportChatTranscript}
                 title="Export chat transcript"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
-                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
-                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
-                  fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
-                }}
               >
                 <Download size={12} /> Export Chat
               </button>
 
               <button 
+                className="utilityAction"
                 onClick={handleRefresh}
                 title="Clear conversation"
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'flex-start',
-                  padding: '4px 8px', borderRadius: '4px', border: '1px solid #e2e8f0',
-                  background: 'white', cursor: 'pointer', color: '#64748b', fontSize: '12px',
-                  fontWeight: '500', whiteSpace: 'nowrap', width: '100%'
-                }}
               >
                 <RefreshCw size={12} /> Refresh Chat
               </button>
             </div>
 
-            <div className="statusPill" style={{ whiteSpace: 'nowrap' }}>
+            <div className="statusPill">
               <Circle size={10} fill="currentColor" />
               Escalation off
             </div>
@@ -820,7 +779,7 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
               <ShieldAlert size={16} />
               Admin Panel
             </button>
-            <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
+            <button className="orgCreateBtn" onClick={onCreateOrg}>✨ Create FAQ Bot</button>
             <div className="userMenu">
               <span>{authUser?.name || 'User'}</span>
               <button type="button" onClick={onLogout} title="Log out">
@@ -887,38 +846,36 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
         </button>
 
         {mostAskedQuestions.length > 0 && (
-          <div className="mostAskedSection" aria-label="Most Asked Questions">
-            <h3
-              style={{
-                width: '100%',
-                margin: '0 0 10px 0',
-                color: '#64748b',
-                fontSize: '14px',
-                fontWeight: '700'
-              }}
-            >
-              Most Asked Questions (Top 20)
-            </h3>
-
-            {mostAskedQuestions.map((question) => (
+          <div className={`mostAskedSection ${showMostAsked ? 'isExpanded' : 'isCollapsed'}`} aria-label="Most Asked Questions">
+            <div className="mostAskedHeader">
+              <h3>Most Asked Questions</h3>
+              <span>{mostAskedQuestions.length} tracked</span>
               <button
-                key={question._id || question.normalizedQuestion}
+                className="mostAskedToggle"
                 type="button"
-                onClick={() => useQuickPrompt(question.displayQuestion)}
+                onClick={() => setShowMostAsked((current) => !current)}
+                aria-expanded={showMostAsked}
               >
-                {question.displayQuestion} ({question.count})
+                {showMostAsked ? 'Hide' : 'Show'}
+                <ChevronDown size={16} />
               </button>
-            ))}
+            </div>
+
+            {showMostAsked && (
+              <div className="mostAskedList">
+                {mostAskedQuestions.map((question) => (
+                  <button
+                    key={question._id || question.normalizedQuestion}
+                    type="button"
+                    onClick={() => useQuickPrompt(question.displayQuestion)}
+                  >
+                    {question.displayQuestion} ({question.count})
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
-
-        <div className="quickPrompts" aria-label="Suggested questions">
-          {QUICK_PROMPTS.map((prompt) => (
-            <button key={prompt} type="button" onClick={() => useQuickPrompt(prompt)}>
-              {prompt}
-            </button>
-          ))}
-        </div>
 
         <form className="composer" onSubmit={sendMessage}>
          <div
