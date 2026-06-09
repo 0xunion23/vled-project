@@ -31,18 +31,18 @@ export async function trackQuestion(question) {
     return;
   }
 
-  const exactQuestion = await MostAskedQuestion.findOne({
-    normalizedQuestion
-  });
+ const exactQuestion = await MostAskedQuestion.findOne({
+  normalizedQuestion
+});
 
-  if (exactQuestion) {
-    exactQuestion.count += 1;
-    exactQuestion.displayQuestion = question.trim();
-    await exactQuestion.save();
-    return;
-  }
+if (exactQuestion) {
+  exactQuestion.count += 1;
+  exactQuestion.displayQuestion = question.trim();
+  await exactQuestion.save();
+  return;
+}
 
- const [questionEmbedding] = await embedTexts([
+const [questionEmbedding] = await embedTexts([
   normalizedQuestion
 ]);
 

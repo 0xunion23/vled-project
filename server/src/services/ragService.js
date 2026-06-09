@@ -219,7 +219,7 @@ export async function answerQuestion(query) {
     } else {
       return returnWithTracking(normalizedQuery, {
         answer,
-        answerFound: isFaqAnswer(answer),
+        answerFound: true,
         confidence: bestScore,
         sources: results.map(toSource),
       });

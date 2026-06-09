@@ -81,6 +81,19 @@ function toContext(result) {
   };
 }
 
+function isNotEnoughInformationAnswer(answer) {
+  const normalizedAnswer = String(answer || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return normalizedAnswer === 'i do not have enough information in the faq knowledge base to answer that.';
+}
+
+function isFaqAnswer(answer) {
+  return !isNotEnoughInformationAnswer(answer);
+}
+
 export async function answerOrgQuestion(orgId, query) {
   const normalizedQuery = String(query || '').trim();
 
@@ -110,7 +123,16 @@ export async function answerOrgQuestion(orgId, query) {
     };
   }
 
-  const answer = await generateWithOllama({ query: normalizedQuery, contexts: results.map(toContext) });
+  const answer = await generateWithOllama({
+    query: normalizedQuery,
+    contexts: results.map(toContext),
+    bestscore: bestScore,
+  });
 
-  return { answer, answerFound: true, confidence: bestScore, sources: results.map(toSource) };
+  return {
+    answer,
+    answerFound: isFaqAnswer(answer),
+    confidence: bestScore,
+    sources: results.map(toSource),
+  };
 }
