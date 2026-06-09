@@ -80,37 +80,3 @@ export async function warmOllamaModel() {
     clearTimeout(timeout);
   }
 }
-
-export async function detectHallucination({ contexts, answer }) {
-  const contextText = contexts
-    .map(
-      (context, index) =>
-        `Context ${index + 1}\nCategory: ${context.category}\nQuestion: ${context.question}\nAnswer: ${context.answer}`
-    )
-    .join('\n\n');
-
-  const prompt = `Check whether the answer is fully supported by the retrieved contexts.
-Reply with exactly one word: grounded or fake.
-
-Retrieved contexts:
-${contextText}
-
-Generated answer to check:
-${answer}
-
-Response:`;
-
-  try {
-    const result = await requestOllamaGenerate({
-      prompt,
-      options: {
-        temperature: 0,
-        num_predict: 4,
-      },
-    });
-    return result.toLowerCase().includes('fake') ? 'fake' : 'grounded';
-  } catch (error) {
-    console.error('Hallucination validation failed:', error);
-    return 'grounded';
-  }
-}
