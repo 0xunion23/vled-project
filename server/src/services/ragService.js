@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { DuplicateQuestion } from "../models/DuplicateQuestion.js";
 import { Faq } from "../models/Faq.js";
 import { buildFaqText, embedFaq, embedTexts } from "./embeddingService.js";
 import { generateWithOllama, validateWithOllama } from "./ollamaService.js";
@@ -154,8 +155,27 @@ function trackQuestionInBackground(query) {
   });
 }
 
+function escalateUnansweredInBackground(query, result) {
+  if (result.answerFound !== false) {
+    return;
+  }
+
+  const topSource = result.sources?.[0];
+  const similarityScore = topSource?.score || result.confidence || 0;
+
+  DuplicateQuestion.create({
+    question: query,
+    matchedQuestion: topSource?.question,
+    similarityScore,
+    status: similarityScore >= 0.75 ? 'duplicate' : 'new',
+  }).catch((error) => {
+    console.error('Failed to escalate unanswered question:', error);
+  });
+}
+
 function returnWithTracking(query, result) {
   trackQuestionInBackground(query);
+  escalateUnansweredInBackground(query, result);
   return result;
 }
 
@@ -199,7 +219,7 @@ export async function answerQuestion(query) {
     } else {
       return returnWithTracking(normalizedQuery, {
         answer,
-        answerFound: isFaqAnswer(answer),
+        answerFound: true,
         confidence: bestScore,
         sources: results.map(toSource),
       });

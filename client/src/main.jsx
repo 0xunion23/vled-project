@@ -83,6 +83,12 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
             <ConfidenceBadge found={message.answerFound} confidence={message.confidence} />
           )}
         </div>
+
+        {!isUser && message.answerFound === false && (
+          <div className="escalationNotice">
+            Query escalated for review
+          </div>
+        )}
         
         {isUser && isEditing ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%', marginTop: '6px' }}>

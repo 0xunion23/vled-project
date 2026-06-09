@@ -31,7 +31,18 @@ export async function trackQuestion(question) {
     return;
   }
 
- const [questionEmbedding] = await embedTexts([
+ const exactQuestion = await MostAskedQuestion.findOne({
+  normalizedQuestion
+});
+
+if (exactQuestion) {
+  exactQuestion.count += 1;
+  exactQuestion.displayQuestion = question.trim();
+  await exactQuestion.save();
+  return;
+}
+
+const [questionEmbedding] = await embedTexts([
   normalizedQuestion
 ]);
 
@@ -71,11 +82,25 @@ if (
   bestMatch.count += 1;
   await bestMatch.save();
 } else {
-  await MostAskedQuestion.create({
-    normalizedQuestion,
-    displayQuestion: question.trim(),
-    count: 1,
-    embedding: questionEmbedding
-  });
+  try {
+    await MostAskedQuestion.create({
+      normalizedQuestion,
+      displayQuestion: question.trim(),
+      count: 1,
+      embedding: questionEmbedding
+    });
+  } catch (error) {
+    if (error?.code !== 11000) {
+      throw error;
+    }
+
+    await MostAskedQuestion.updateOne(
+      { normalizedQuestion },
+      {
+        $inc: { count: 1 },
+        $set: { displayQuestion: question.trim() }
+      }
+    );
+  }
 }
 }

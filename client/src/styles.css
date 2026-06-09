@@ -335,6 +335,22 @@ button {
   background: #fff4f0;
 }
 
+.escalationNotice {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 30px;
+  margin: -2px 0 12px;
+  padding: 0 12px;
+  border: 1px solid #fde68a;
+  border-radius: 999px;
+  color: #a16207;
+  background: #fffbeb;
+  font-size: 0.84rem;
+  font-weight: 850;
+}
+
 .sources {
   display: flex;
   flex-wrap: wrap;
@@ -826,6 +842,12 @@ button {
 
 [data-theme="dark"] .userMessage .messageHeader strong {
   color: #60a5fa;
+}
+
+[data-theme="dark"] .escalationNotice {
+  color: #fde68a;
+  background: rgba(113, 63, 18, 0.34);
+  border-color: rgba(245, 158, 11, 0.42);
 }
 
 [data-theme="dark"] .sources span {
