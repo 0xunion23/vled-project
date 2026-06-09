@@ -12,7 +12,7 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert
 } from 'lucide-react';
 import './styles.css';
 
@@ -232,6 +232,11 @@ function DefaultChat({ onCreateOrg }) {
   const [analyticsData, setAnalyticsData] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsError, setAnalyticsError] = useState('');
+  
+  const [activeTab, setActiveTab] = useState('analytics');
+  const [securityLogs, setSecurityLogs] = useState([]);
+  const [securityLoading, setSecurityLoading] = useState(false);
+  const [securityError, setSecurityError] = useState('');
 
   const [messages, setMessages] = useState(() => {
     const saved = localStorage.getItem('chat_memory');
@@ -300,10 +305,48 @@ function DefaultChat({ onCreateOrg }) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }
 
+  async function fetchSecurityLogs() {
+    setSecurityLoading(true);
+    setSecurityError('');
+    try {
+      const response = await fetch(`${API_URL}/api/analytics/security-logs`);
+      if (!response.ok) {
+        throw new Error('Failed to load security logs');
+      }
+      const data = await response.json();
+      setSecurityLogs(data);
+    } catch (error) {
+      console.error(error);
+      setSecurityError('Could not load security logs right now.');
+    } finally {
+      setSecurityLoading(false);
+    }
+  }
+
+  async function clearSecurityLogs() {
+    if (!window.confirm('Are you sure you want to clear all security logs?')) return;
+    setSecurityLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/analytics/security-logs`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error('Failed to clear security logs');
+      }
+      setSecurityLogs([]);
+    } catch (error) {
+      console.error(error);
+      alert('Failed to clear security logs.');
+    } finally {
+      setSecurityLoading(false);
+    }
+  }
+
   async function openAnalytics() {
     setShowAnalytics(true);
     setAnalyticsLoading(true);
     setAnalyticsError('');
+    setActiveTab('analytics');
 
     try {
       const response = await fetch(`${API_URL}/api/analytics/daily-searches`);
@@ -318,6 +361,8 @@ function DefaultChat({ onCreateOrg }) {
     } finally {
       setAnalyticsLoading(false);
     }
+
+    fetchSecurityLogs();
   }
 
   function handleRefresh() {
@@ -621,8 +666,8 @@ function DefaultChat({ onCreateOrg }) {
               Escalation off
             </div>
             <button className="analyticsToggleBtn" type="button" onClick={openAnalytics}>
-              <Database size={16} />
-              Analytics
+              <ShieldAlert size={16} />
+              Admin Panel
             </button>
             <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
           </div>
@@ -810,44 +855,137 @@ function DefaultChat({ onCreateOrg }) {
         </form>
 
         {showAnalytics && (
-          <div className="analyticsOverlay" role="dialog" aria-modal="true" aria-label="Daily search analytics">
-            <section className="analyticsPanel">
+          <div className="analyticsOverlay" role="dialog" aria-modal="true" aria-label="Admin and Analytics Panel">
+            <section className="analyticsPanel adminPanelModal">
               <div className="analyticsHeader">
                 <div>
-                  <h2>Daily Search Analytics</h2>
-                  <p>Search activity from chatbot usage</p>
+                  <h2>Admin Dashboard</h2>
+                  <p>Manage system security logs and view usage analytics</p>
                 </div>
-                <button type="button" className="analyticsCloseBtn" onClick={() => setShowAnalytics(false)} aria-label="Close analytics">
+                <button type="button" className="analyticsCloseBtn" onClick={() => setShowAnalytics(false)} aria-label="Close admin dashboard">
                   <X size={20} />
                 </button>
               </div>
 
-              {analyticsLoading ? (
-                <div className="analyticsState">
-                  <Loader2 size={20} className="spin" />
-                  Loading analytics
-                </div>
-              ) : analyticsError ? (
-                <div className="analyticsState analyticsError">{analyticsError}</div>
-              ) : (
-                <>
-                  <div className="analyticsChart">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={analyticsData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="_id.date" />
-                        <YAxis allowDecimals={false} />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="count" stroke="#345df7" strokeWidth={3} dot={{ r: 4 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
+              <div className="adminTabs">
+                <button
+                  type="button"
+                  className={`adminTabBtn ${activeTab === 'analytics' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('analytics')}
+                >
+                  <Database size={14} />
+                  Search Analytics
+                </button>
+                <button
+                  type="button"
+                  className={`adminTabBtn ${activeTab === 'security' ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveTab('security');
+                    fetchSecurityLogs();
+                  }}
+                >
+                  <ShieldAlert size={14} />
+                  Security Logs
+                </button>
+              </div>
+
+              <div className="adminTabContent" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                {activeTab === 'analytics' ? (
+                  analyticsLoading ? (
+                    <div className="analyticsState">
+                      <Loader2 size={20} className="spin" />
+                      Loading analytics
+                    </div>
+                  ) : analyticsError ? (
+                    <div className="analyticsState analyticsError">{analyticsError}</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                      <div className="analyticsChart" style={{ flex: 1, minHeight: '260px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={analyticsData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="_id.date" />
+                            <YAxis allowDecimals={false} />
+                            <Tooltip />
+                            <Line type="monotone" dataKey="count" stroke="#345df7" strokeWidth={3} dot={{ r: 4 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="analyticsSummary" style={{ marginTop: '12px' }}>
+                        <span>Total Searches</span>
+                        <strong>{analyticsData.reduce((sum, item) => sum + item.count, 0)}</strong>
+                      </div>
+                    </div>
+                  )
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                      <span style={{ fontSize: '13px', color: '#64748b' }}>
+                        Showing latest prompt injection attempts detected by safetyScanner
+                      </span>
+                      {securityLogs.length > 0 && (
+                        <button
+                          type="button"
+                          className="clearLogsBtn"
+                          onClick={clearSecurityLogs}
+                          disabled={securityLoading}
+                        >
+                          <Trash2 size={13} />
+                          Clear Security Logs
+                        </button>
+                      )}
+                    </div>
+
+                    {securityLoading && securityLogs.length === 0 ? (
+                      <div className="analyticsState">
+                        <Loader2 size={20} className="spin" />
+                        Loading security logs
+                      </div>
+                    ) : securityError ? (
+                      <div className="analyticsState analyticsError">{securityError}</div>
+                    ) : securityLogs.length === 0 ? (
+                      <div className="analyticsState" style={{ minHeight: '240px' }}>
+                        🛡️ No security incidents logged. The system is secure!
+                      </div>
+                    ) : (
+                      <div className="securityLogsContainer" style={{ overflowY: 'auto', flex: 1, minHeight: 0, border: '1px solid var(--border-color, #e5ebf4)', borderRadius: '12px' }}>
+                        <table className="securityLogsTable" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ background: 'var(--header-bg, #f8fafc)', borderBottom: '1px solid var(--border-color, #e5ebf4)', position: 'sticky', top: 0 }}>
+                              <th style={{ padding: '12px 16px', color: 'var(--text-muted, #475569)', fontWeight: '700' }}>Time</th>
+                              <th style={{ padding: '12px 16px', color: 'var(--text-muted, #475569)', fontWeight: '700' }}>Blocked Query (Payload)</th>
+                              <th style={{ padding: '12px 16px', color: 'var(--text-muted, #475569)', fontWeight: '700' }}>Detected Pattern</th>
+                              <th style={{ padding: '12px 16px', color: 'var(--text-muted, #475569)', fontWeight: '700' }}>Level</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {securityLogs.map((log) => (
+                              <tr key={log._id} className="securityLogRow" style={{ borderBottom: '1px solid var(--row-border, #f1f5f9)' }}>
+                                <td style={{ padding: '12px 16px', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap' }}>
+                                  {new Date(log.createdAt).toLocaleString()}
+                                </td>
+                                <td style={{ padding: '12px 16px', fontWeight: '500', color: 'var(--text-main, #0f172a)', wordBreak: 'break-all' }}>
+                                  <code style={{ fontSize: '12px', background: 'rgba(0,0,0,0.03)', padding: '2px 4px', borderRadius: '4px' }}>{log.payload}</code>
+                                </td>
+                                <td style={{ padding: '12px 16px', color: 'var(--text-muted, #475569)' }}>
+                                  <code style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', padding: '2px 6px', borderRadius: '4px', fontSize: '12px', wordBreak: 'break-all' }}>
+                                    {log.detectedPattern}
+                                  </code>
+                                </td>
+                                <td style={{ padding: '12px 16px' }}>
+                                  <span className="badge badgeLow" style={{ padding: '2px 8px', fontSize: '11px', minHeight: 'auto', background: '#ffe0d8', color: '#e35b45', border: '1px solid #ffe0d8' }}>
+                                    {log.threatLevel}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                  <div className="analyticsSummary">
-                    <span>Total Searches</span>
-                    <strong>{analyticsData.reduce((sum, item) => sum + item.count, 0)}</strong>
-                  </div>
-                </>
-              )}
+                )}
+              </div>
             </section>
           </div>
         )}
