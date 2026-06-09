@@ -220,6 +220,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
 
 function DefaultChat({ onCreateOrg }) {
   const [input, setInput] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -519,6 +520,25 @@ function DefaultChat({ onCreateOrg }) {
     }
   }
 
+  async function fetchSuggestions(query) {
+  if (!query.trim()) {
+    setSuggestions([]);
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_URL}/api/suggestions?q=${encodeURIComponent(query)}`
+    );
+
+    const data = await response.json();
+
+    setSuggestions(data);
+  } catch (error) {
+    console.error('Failed to fetch suggestions:', error);
+  }
+}
+  
   async function sendMessage(event) {
     if (event) event.preventDefault();
     const text = input.trim();
@@ -526,6 +546,7 @@ function DefaultChat({ onCreateOrg }) {
 
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'user', text, timestamp: getTime() }]);
     setInput('');
+    setSuggestions([]);
     setIsLoading(true);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
@@ -575,6 +596,7 @@ function DefaultChat({ onCreateOrg }) {
 
   function useQuickPrompt(prompt) {
     setInput(prompt);
+    setSuggestions([]);
     textareaRef.current?.focus();
   }
 
@@ -742,12 +764,28 @@ function DefaultChat({ onCreateOrg }) {
         </div>
 
         <form className="composer" onSubmit={sendMessage}>
-          <div className="inputShell" style={{ alignItems: 'center' }}>
+         <div
+            className="inputShell"
+            style={{
+              alignItems: 'center',
+              position: 'relative'
+            }}
+          >
             <MessageSquare size={21} color="#64748b" />
             <textarea
               ref={textareaRef}
               value={input}
-              onChange={(event) => setInput(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+              
+                setInput(value);
+              
+                if (value.length >= 2) {
+                  fetchSuggestions(value);
+                } else {
+                  setSuggestions([]);
+                }
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Ask a question..."
               aria-label="Question"
@@ -768,6 +806,42 @@ function DefaultChat({ onCreateOrg }) {
                 display: 'block'
               }}
             />
+                        {suggestions.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  width: '100%',
+                  top: '55px',
+                  left: 0,
+                  zIndex: 1000,
+                  background: '#111827',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: '12px',
+                  maxHeight: '220px',
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.35)'
+                }}
+              >
+                {suggestions.map((suggestion, index) => (
+                  <div
+                    key={index}
+                    onClick={() => {
+                      setInput(suggestion);
+                      setSuggestions([]);
+                    }}
+                    style={{
+                      padding: '12px 16px',
+                      cursor: 'pointer',
+                      color: '#e5e7eb',
+                      borderBottom: '1px solid rgba(255,255,255,0.05)'
+                    }}
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
+            )}
             <button type="submit" disabled={isLoading || !input.trim() || input.length > 500} aria-label="Send message">
               <Send size={18} />
             </button>
