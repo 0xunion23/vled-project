@@ -3,6 +3,7 @@ import express from 'express';
 import { env } from './config/env.js';
 import { connectMongo } from './db/mongoose.js';
 import { chatRouter } from './routes/chatRoutes.js';
+import { authRouter } from './routes/authRoutes.js';
 import { orgRouter } from './routes/orgRoutes.js';
 import { faqRouter } from './routes/faqRoutes.js';
 import {questionReviewRouter} from './routes/questionReviewRoutes.js';
@@ -27,6 +28,7 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true });
 });
 
+app.use('/api/auth', authRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/orgs', orgRouter);
 app.use('/api/faqs', faqRouter);
@@ -36,8 +38,9 @@ app.use('/api/analytics', analyticsRoutes);
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({
-    message: 'Something went wrong while processing the request.'
+  const status = error.statusCode || 500;
+  res.status(status).json({
+    message: status >= 500 ? 'Something went wrong while processing the request.' : error.message
   });
 });
 

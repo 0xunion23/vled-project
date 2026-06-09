@@ -29,6 +29,7 @@ body {
 
 button,
 input,
+textarea,
 select {
   font: inherit;
 }
@@ -65,6 +66,167 @@ button {
   box-shadow:
     0 34px 80px rgba(42, 56, 75, 0.18),
     0 10px 26px rgba(66, 76, 95, 0.08);
+}
+
+.authShell {
+  padding: 24px;
+}
+
+.authCard {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 32px;
+  border: 1px solid rgba(219, 226, 238, 0.9);
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow:
+    0 34px 80px rgba(42, 56, 75, 0.16),
+    0 10px 26px rgba(66, 76, 95, 0.08);
+}
+
+.authBrand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.authBrand h1 {
+  margin: 0;
+  color: #101a2f;
+  font-size: 1.55rem;
+  line-height: 1.1;
+}
+
+.authBrand p {
+  margin: 8px 0 0;
+  color: #8290a7;
+  font-size: 0.98rem;
+  font-weight: 650;
+}
+
+.authTabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 5px;
+  border: 1px solid #dfe7f2;
+  border-radius: 16px;
+  background: #f6f8fc;
+}
+
+.authTabs button {
+  min-height: 42px;
+  border: 0;
+  border-radius: 12px;
+  color: #6a778d;
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.authTabs button.active {
+  color: #ffffff;
+  background: #345df7;
+  box-shadow: 0 10px 20px rgba(52, 93, 247, 0.22);
+}
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.authField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #526077;
+  font-weight: 800;
+}
+
+.authField > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 16px;
+  border: 1px solid #dfe7f2;
+  border-radius: 16px;
+  color: #8b98ad;
+  background: #fbfcff;
+}
+
+.authField input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #172238;
+  background: transparent;
+}
+
+.authError {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  border-radius: 14px;
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.authSubmit {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 16px;
+  color: #ffffff;
+  background: linear-gradient(145deg, #345df7 0%, #7140ea 100%);
+  font-weight: 850;
+  cursor: pointer;
+  box-shadow: 0 16px 30px rgba(52, 93, 247, 0.24);
+}
+
+.authSubmit:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.userMenu {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 6px 4px 12px;
+  border: 1px solid #dce4ef;
+  border-radius: 999px;
+  color: #64748b;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.userMenu span {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userMenu button {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #64748b;
+  background: #f1f5f9;
+  cursor: pointer;
 }
 
 .topBar {

@@ -12,7 +12,7 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert, LogOut, Mail, Lock
 } from 'lucide-react';
 import './styles.css';
 
@@ -40,6 +40,130 @@ const getDynamicGreeting = () => {
   else greeting = "Good evening";
   return `${greeting}! I'm OxEngine, your FAQ assistant. Ask me anything and I'll find the best answer for you.`;
 };
+
+function AuthView({ onAuthenticated }) {
+  const [mode, setMode] = useState('login');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/auth/${mode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          email,
+          password
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Authentication failed.');
+      }
+
+      onAuthenticated(data);
+    } catch (authError) {
+      setError(authError.message || 'Authentication failed.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setError('');
+  }
+
+  return (
+    <main className="appShell authShell">
+      <section className="authCard" aria-label="Account access">
+        <div className="authBrand">
+          <div className="brandIcon">
+            <Bot size={24} />
+          </div>
+          <div>
+            <h1>FAQ OxEngine</h1>
+            <p>Sign in to chat with the FAQ assistant.</p>
+          </div>
+        </div>
+
+        <div className="authTabs" role="tablist" aria-label="Authentication mode">
+          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>
+            Login
+          </button>
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>
+            Register
+          </button>
+        </div>
+
+        <form className="authForm" onSubmit={handleSubmit}>
+          {mode === 'register' && (
+            <label className="authField">
+              <span>Name</span>
+              <div>
+                <UserRound size={18} />
+                <input
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Your name"
+                  autoComplete="name"
+                  required
+                />
+              </div>
+            </label>
+          )}
+
+          <label className="authField">
+            <span>Email</span>
+            <div>
+              <Mail size={18} />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </div>
+          </label>
+
+          <label className="authField">
+            <span>Password</span>
+            <div>
+              <Lock size={18} />
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Minimum 6 characters"
+                autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                minLength={6}
+                required
+              />
+            </div>
+          </label>
+
+          {error && <p className="authError">{error}</p>}
+
+          <button type="submit" className="authSubmit" disabled={isSubmitting}>
+            {isSubmitting ? <Loader2 size={18} className="spin" /> : null}
+            {mode === 'register' ? 'Create account' : 'Login'}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
 
 function ConfidenceBadge({ found, confidence }) {
   return (
@@ -224,7 +348,7 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   );
 }
 
-function DefaultChat({ onCreateOrg }) {
+function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -430,10 +554,17 @@ function DefaultChat({ onCreateOrg }) {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
         body: JSON.stringify({ message: newText })
       });
 
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
       if (!response.ok) throw new Error('Request failed');
 
       const data = await response.json();
@@ -487,10 +618,17 @@ function DefaultChat({ onCreateOrg }) {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
         body: JSON.stringify({ message: lastUserText })
       });
 
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
       if (!response.ok) throw new Error('Request failed');
 
       const data = await response.json();
@@ -559,10 +697,17 @@ function DefaultChat({ onCreateOrg }) {
     try {
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
         body: JSON.stringify({ message: text })
       });
 
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
       if (!response.ok) {
         throw new Error('Request failed');
       }
@@ -676,6 +821,12 @@ function DefaultChat({ onCreateOrg }) {
               Admin Panel
             </button>
             <button className="orgCreateBtn" onClick={onCreateOrg} style={{ whiteSpace: 'nowrap' }}>✨ Create FAQ Bot</button>
+            <div className="userMenu">
+              <span>{authUser?.name || 'User'}</span>
+              <button type="button" onClick={onLogout} title="Log out">
+                <LogOut size={15} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -1306,6 +1457,11 @@ function App() {
   const [view, setView]         = useState(urlOrg ? 'orgChat' : 'home');
   const [activeOrgId, setActiveOrgId] = useState(urlOrg || null);
   const [activeOrgName, setActiveOrgName] = useState('');
+  const [authToken, setAuthToken] = useState(() => localStorage.getItem('auth_token') || '');
+  const [authUser, setAuthUser] = useState(() => {
+    const savedUser = localStorage.getItem('auth_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
   function handlePublished(orgId, orgName) {
     setActiveOrgId(orgId);
@@ -1313,7 +1469,33 @@ function App() {
     setView('share');
   }
 
-  if (view === 'home')    return <DefaultChat onCreateOrg={() => setView('create')} />;
+  function handleAuthenticated({ token, user }) {
+    localStorage.setItem('auth_token', token);
+    localStorage.setItem('auth_user', JSON.stringify(user));
+    setAuthToken(token);
+    setAuthUser(user);
+  }
+
+  async function handleLogout() {
+    if (authToken) {
+      fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      }).catch(() => {});
+    }
+
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    setAuthToken('');
+    setAuthUser(null);
+    setView(urlOrg ? 'orgChat' : 'home');
+  }
+
+  if (!urlOrg && !authToken) return <AuthView onAuthenticated={handleAuthenticated} />;
+
+  if (view === 'home')    return <DefaultChat onCreateOrg={() => setView('create')} authToken={authToken} authUser={authUser} onLogout={handleLogout} />;
   if (view === 'create')  return <CreateOrgView onBack={() => setView('home')} onPublished={handlePublished} />;
   if (view === 'share')   return <ShareView orgId={activeOrgId} orgName={activeOrgName} onBack={() => setView('home')} onViewBot={() => setView('orgChat')} />;
   if (view === 'orgChat') return <OrgChatView orgId={activeOrgId} onBack={() => setView('home')} />;
