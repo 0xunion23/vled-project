@@ -179,7 +179,7 @@ function returnWithTracking(query, result) {
   return result;
 }
 
-export async function answerQuestion(query) {
+export async function answerQuestion(query, history = []) {
   const normalizedQuery = String(query || "").trim();
 
   if (!normalizedQuery) {
@@ -229,6 +229,7 @@ export async function answerQuestion(query) {
     query: normalizedQuery,
     contexts,
     bestscore: bestScore,
+    history,
   });
 
 return returnWithTracking(normalizedQuery, {

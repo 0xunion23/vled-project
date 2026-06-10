@@ -12,7 +12,7 @@ import {
 import { 
   Bot, Circle, Database, Loader2, MessageSquare, Send, UserRound,
   ThumbsUp, ThumbsDown, RefreshCw, RotateCcw, Copy, Check, Pencil, ArrowDown,
-  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert, LogOut, Mail, Lock, ChevronDown
+  ArrowLeft, Trash2, Plus, Volume2, Download, X, ShieldAlert, LogOut, Mail, Lock, ChevronDown, History
 } from 'lucide-react';
 import './styles.css';
 
@@ -320,6 +320,17 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
   );
 }
 
+
+// Builds the history payload to send with each chat request.
+// Excludes the very last message (the one just sent) and any system/welcome messages.
+// Keeps last 10 messages max to stay within Ollama context window.
+function buildHistoryPayload(messages) {
+  return messages
+    .filter(m => (m.role === 'user' || m.role === 'assistant') && m.text)
+    .slice(-10)
+    .map(m => ({ role: m.role, text: m.text }));
+}
+
 function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -531,7 +542,7 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         },
-        body: JSON.stringify({ message: newText })
+        body: JSON.stringify({ message: newText, history: buildHistoryPayload(truncatedHistory) })
       });
 
       if (response.status === 401) {
@@ -595,7 +606,7 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         },
-        body: JSON.stringify({ message: lastUserText })
+        body: JSON.stringify({ message: lastUserText, history: buildHistoryPayload(newMessages) })
       });
 
       if (response.status === 401) {
@@ -674,7 +685,7 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`
         },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({ message: text, history: buildHistoryPayload(messages) })
       });
 
       if (response.status === 401) {
@@ -761,6 +772,11 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
               >
                 <Download size={12} /> Export Chat
               </button>
+
+              <div className="historyIndicator">
+                <History size={12} />
+                <span>{Math.max(0, messages.filter(m => m.role === 'user').length)} turns</span>
+              </div>
 
               <button 
                 className="utilityAction"

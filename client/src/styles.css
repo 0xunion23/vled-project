@@ -1728,3 +1728,20 @@ textarea.formInput,
   background: #3b0764;
   box-shadow: 0 4px 12px rgba(244, 114, 182, 0.15);
 }
+
+/* ── Conversation history indicator ─────────────────────────────────────── */
+.historyIndicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  background: var(--panel-bg, white);
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  width: 100%;
+  user-select: none;
+}
