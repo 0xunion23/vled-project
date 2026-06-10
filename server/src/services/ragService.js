@@ -148,6 +148,31 @@ function isObviousGreeting(query) {
   return greetings.has(normalized);
 }
 
+function isCasualAcknowledgement(query) {
+  const normalized = normalizeQueryText(query);
+  const casualMessages = new Set([
+    "ok",
+    "okay",
+    "okk",
+    "k",
+    "thanks",
+    "thank you",
+    "thx",
+    "got it",
+    "cool",
+    "sure",
+    "fine",
+    "great",
+    "nice",
+    "awesome",
+    "alright",
+    "all right",
+    "understood",
+  ]);
+
+  return casualMessages.has(normalized);
+}
+
 function isGibberishLike(query) {
   const normalized = normalizeQueryText(query).replace(/\s/g, "");
   if (!normalized) return true;
@@ -193,6 +218,7 @@ function normalizeValidationLabel(label) {
 
   if (normalized === "valid") return "valid";
   if (normalized === "greeting") return "greeting";
+  if (normalized === "casual") return "casual";
   return "invalid";
 }
 
@@ -200,7 +226,7 @@ function isFollowUpLikeQuery(query) {
   const normalized = normalizeQueryText(query);
   const wordCount = getQueryWordCount(normalized);
 
-  if (!normalized || isObviousGreeting(normalized) || isGibberishLike(normalized)) {
+  if (!normalized || isObviousGreeting(normalized) || isCasualAcknowledgement(normalized) || isGibberishLike(normalized)) {
     return false;
   }
 
@@ -304,6 +330,16 @@ export async function answerQuestion(query, options = {}) {
     if (validationLabel === "greeting") {
       return returnWithTracking(normalizedQuery, {
         answer: "Hello, how can I help you today?",
+        answerFound: true,
+        memoryEligible: false,
+        confidence: bestScore,
+        sources: results.map(toSource),
+      });
+    }
+
+    if (validationLabel === "casual") {
+      return returnWithTracking(normalizedQuery, {
+        answer: "Let me know if anything else comes up.",
         answerFound: true,
         memoryEligible: false,
         confidence: bestScore,

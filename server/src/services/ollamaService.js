@@ -61,9 +61,10 @@ export async function validateWithOllama({ query, contexts }) {
 Classify the user question into exactly one label:
 - "valid": a genuine internship-related question that is not answered well enough by the retrieved FAQ context.
 - "greeting": a greeting or casual opener such as hi, hello, hey, good morning, or how are you.
+- "casual": a casual acknowledgement or closing message such as ok, okay, thanks, thank you, got it, cool, sure, fine, great, or nice.
 - "invalid": gibberish, random text, or anything not related to the Vicharanashala internship.
 
-Return only one word: valid, greeting, or invalid.`;
+Return only one word: valid, greeting, casual, or invalid.`;
 
   return requestOllamaGenerate({
     prompt: `${prompt}\n\nUser question: ${query}\n\nAnswer:`,
