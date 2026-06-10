@@ -177,7 +177,7 @@ function AuthView({ onAuthenticated }) {
   );
 }
 
-function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
+function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt, onEscalate }) {
   const isUser = message.role === 'user';
   const [vote, setVote] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -208,10 +208,21 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
           <span style={{ fontSize: '11px', color: '#94a3b8' }}>{message.timestamp}</span>
         </div>
 
-        {!isUser && message.answerFound === false && (
-          <div className="escalationNotice">
-            Query escalated for review
-          </div>
+        {!isUser && message.escalationEligible && (
+          message.escalationStatus === 'escalated' ? (
+            <div className="escalationNotice">
+              Query escalated for review
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="escalationAction"
+              disabled={message.escalationStatus === 'submitting'}
+              onClick={() => onEscalate?.(message.id, message.escalationQuery)}
+            >
+              {message.escalationStatus === 'submitting' ? 'Escalating...' : 'Escalate query'}
+            </button>
+          )
         )}
         
         {isUser && isEditing ? (
@@ -397,6 +408,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
             answerFound: message.answerFound,
             confidence: message.confidence,
             sources: message.sources || [],
+            escalationEligible: message.escalationEligible === true,
+            escalationStatus: message.escalationStatus || null,
+            escalationQuery: message.escalationQuery || '',
             timestamp: formatHistoryTime(message.createdAt)
           }))
         ]);
@@ -618,6 +632,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          escalationEligible: data.escalationEligible === true,
+          escalationStatus: data.escalationStatus || null,
+          escalationQuery: data.escalationQuery || newText,
           timestamp: getTime()
         }
       ]);
@@ -682,6 +699,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          escalationEligible: data.escalationEligible === true,
+          escalationStatus: data.escalationStatus || null,
+          escalationQuery: data.escalationQuery || lastUserText,
           timestamp: getTime()
         }
       ]);
@@ -702,6 +722,53 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleEscalateMessage(messageId, escalationQuery) {
+    const query = String(escalationQuery || '').trim();
+    if (!query || isLoading) return;
+
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === messageId
+          ? { ...message, escalationStatus: 'submitting' }
+          : message
+      )
+    );
+
+    try {
+      const response = await fetch(`${API_URL}/api/chat/escalate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ message: query })
+      });
+
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
+      if (!response.ok) throw new Error('Escalation failed');
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? { ...message, escalationEligible: true, escalationStatus: 'escalated' }
+            : message
+        )
+      );
+    } catch (_error) {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? { ...message, escalationEligible: true, escalationStatus: 'pending' }
+            : message
+        )
+      );
+      alert('Failed to escalate the query. Please check the server and try again.');
     }
   }
 
@@ -763,6 +830,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          escalationEligible: data.escalationEligible === true,
+          escalationStatus: data.escalationStatus || null,
+          escalationQuery: data.escalationQuery || text,
           timestamp: getTime()
         }
       ]);
@@ -867,7 +937,8 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
                 message={message} 
                 isLatestBotMessage={isLatestBotMessage}
                 onRegenerate={handleRegenerate}
-                onEditPrompt={handleEditPrompt} 
+                onEditPrompt={handleEditPrompt}
+                onEscalate={handleEscalateMessage}
               />
             );
           })}

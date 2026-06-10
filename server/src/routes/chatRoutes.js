@@ -1,11 +1,12 @@
 import express from 'express';
-import { answerQuestion } from '../services/ragService.js';
+import { answerQuestion, escalateQuestionForReview } from '../services/ragService.js';
 import { requireAuth } from '../middleware/authMiddleware.js';
 import { safetyScanner } from '../middleware/safetyScanner.js';
 import {
   appendConversationTurn,
   getConversationHistory,
   getRecentMemoryQueries,
+  markConversationEscalated,
   resetConversation
 } from '../services/conversationService.js';
 import SearchLog from '../models/SearchLog.js';
@@ -30,6 +31,17 @@ chatRouter.post('/reset', requireAuth, async (req, res, next) => {
   }
 });
 
+chatRouter.post('/escalate', requireAuth, async (req, res, next) => {
+  try {
+    const message = req.body?.message;
+    const result = await escalateQuestionForReview(message, req.user);
+    await markConversationEscalated(req.user, message);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
 chatRouter.post('/', requireAuth, safetyScanner, async (req, res, next) => {
   try {
     const message = req.body?.message;
@@ -39,7 +51,7 @@ chatRouter.post('/', requireAuth, safetyScanner, async (req, res, next) => {
     });
 
     const memoryQueries = await getRecentMemoryQueries(req.user);
-    const result = await answerQuestion(message, { memoryQueries });
+    const result = await answerQuestion(message, { memoryQueries, user: req.user });
 
     await appendConversationTurn(req.user, {
       query: message,

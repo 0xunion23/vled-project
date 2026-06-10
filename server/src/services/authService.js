@@ -79,7 +79,12 @@ export async function registerUser(payload) {
     return { token, user: publicUser(user) };
   } catch (error) {
     if (error?.code === 11000) {
-      throw createHttpError('An account with this email already exists.', 409);
+      if (error.keyPattern?.email || error.keyValue?.email) {
+        throw createHttpError('An account with this email already exists.', 409);
+      }
+
+      const duplicateField = Object.keys(error.keyPattern || error.keyValue || {})[0] || 'unknown field';
+      throw createHttpError(`Account registration failed because of a duplicate ${duplicateField} index.`, 409);
     }
     throw error;
   }

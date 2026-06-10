@@ -28,7 +28,11 @@ async function requestOllamaGenerate({ prompt, signal, options = {} }) {
   return String(data.response || '').trim();
 }
 
-export async function generateWithOllama({ query, contexts, bestscore }) {
+export async function generateRawWithOllama({ prompt, signal, options = {} }) {
+  return requestOllamaGenerate({ prompt, signal, options });
+}
+
+export async function generateWithOllama({ query, contexts, bestscore, userContext }) {
   const contextText = contexts
     .map(
       (context, index) =>
@@ -36,15 +40,20 @@ export async function generateWithOllama({ query, contexts, bestscore }) {
     )
     .join('\n\n');
 
+  const profileContext = userContext
+    ? `\nAuthenticated user context:\n${userContext}\n`
+    : "";
+
   const prompt = `You are a FAQ support chatbot.
-Use only the retrieved context.
+Use the retrieved FAQ context for internship answers. You may use authenticated user context only for personalization or when the user asks about their own profile/escalated questions.
 
 Choose exactly one response:
 1. If the context answers the question, give only the answer in 1-2 concise sentences.
 2. If the context does not answer the question, say exactly: "I do not have enough information in the FAQ knowledge base to answer that."
 
-Never combine an answer with the fallback sentence. Do not add information that is not in the context.
+Never combine an answer with the fallback sentence. Do not add information that is not in the retrieved FAQ context or authenticated user context.
 Retrieval confidence: ${bestscore}
+${profileContext}
 
 Retrieved context:
 ${contextText}

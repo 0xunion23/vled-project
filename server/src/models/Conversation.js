@@ -23,6 +23,19 @@ const conversationMessageSchema = new mongoose.Schema(
       type: [mongoose.Schema.Types.Mixed],
       default: []
     },
+    escalationEligible: {
+      type: Boolean,
+      default: false
+    },
+    escalationStatus: {
+      type: String,
+      enum: ['pending', 'escalated', null],
+      default: null
+    },
+    escalationQuery: {
+      type: String,
+      default: ''
+    },
     memoryEligible: {
       type: Boolean,
       default: false

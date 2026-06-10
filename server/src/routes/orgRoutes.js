@@ -4,6 +4,7 @@ import { Organisation } from '../models/Organisation.js';
 import { OrgFaq } from '../models/OrgFaq.js';
 import { embedTexts, buildFaqText } from '../services/embeddingService.js';
 import { invalidateOrgRetriever, answerOrgQuestion } from '../services/orgRagService.js';
+import { generateRawWithOllama } from '../services/ollamaService.js';
 
 export const orgRouter = express.Router();
 
@@ -40,24 +41,10 @@ Rules:
 - Format exactly: [{"question":"...","answer":"...","category":"..."}]
 - Allowed category values: General, Services, Policies, Support, Contact`;
 
-    const response = await fetch(`${env.ollamaBaseUrl}/api/generate`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        model:  env.ollamaModel,
-        prompt,
-        stream: false,
-        options: { temperature: 0.3, num_ctx: 4096 },
-      }),
+    const raw = await generateRawWithOllama({
+      prompt,
+      options: { temperature: 0.3, num_predict: 1200, num_ctx: 4096 },
     });
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Ollama request failed: ${response.status} ${body}`);
-    }
-
-    const data = await response.json();
-    const raw  = String(data.response || '').trim();
 
     // Strip accidental markdown fences
     const jsonStr = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();

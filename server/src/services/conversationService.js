@@ -28,6 +28,9 @@ export async function getConversationHistory(user) {
     answerFound: message.answerFound,
     confidence: message.confidence,
     sources: message.sources || [],
+    escalationEligible: message.escalationEligible,
+    escalationStatus: message.escalationStatus,
+    escalationQuery: message.escalationQuery,
     createdAt: message.createdAt
   }));
 }
@@ -55,7 +58,10 @@ export async function appendConversationTurn(user, { query, result, memoryEligib
     text: result.answer,
     answerFound: result.answerFound,
     confidence: result.confidence,
-    sources: result.sources || []
+    sources: result.sources || [],
+    escalationEligible: result.escalationEligible === true,
+    escalationStatus: result.escalationStatus || null,
+    escalationQuery: result.escalationQuery || ''
   });
 
   if (conversation.messages.length > MAX_STORED_MESSAGES) {
@@ -63,6 +69,32 @@ export async function appendConversationTurn(user, { query, result, memoryEligib
   }
 
   await conversation.save();
+}
+
+export async function markConversationEscalated(user, query) {
+  const normalizedQuery = String(query || '').trim();
+
+  if (!normalizedQuery) {
+    return;
+  }
+
+  const conversation = await getActiveConversation(user);
+  let changed = false;
+
+  for (const message of conversation.messages) {
+    if (
+      message.role === 'assistant' &&
+      message.escalationQuery === normalizedQuery &&
+      message.escalationStatus === 'pending'
+    ) {
+      message.escalationStatus = 'escalated';
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await conversation.save();
+  }
 }
 
 export async function resetConversation(user) {

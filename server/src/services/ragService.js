@@ -210,6 +210,110 @@ function isFaqAnswer(answer) {
   return !isNotEnoughInformationAnswer(answer);
 }
 
+function userIdOf(user) {
+  return user?._id || user?.id || null;
+}
+
+function buildUserContext(user, escalatedQuestions = []) {
+  if (!user) {
+    return "No authenticated user profile is available.";
+  }
+
+  const lines = [
+    `Name: ${user.name || "Unknown"}`,
+    `Email: ${user.email || "Unknown"}`,
+  ];
+
+  if (escalatedQuestions.length > 0) {
+    lines.push(
+      "Recent escalated questions:",
+      ...escalatedQuestions.map(
+        (question, index) => `${index + 1}. ${question.question}`
+      )
+    );
+  } else {
+    lines.push("Recent escalated questions: none");
+  }
+
+  return lines.join("\n");
+}
+
+async function getRecentEscalatedQuestions(user, limit = 5) {
+  const userId = userIdOf(user);
+  if (!userId) {
+    return [];
+  }
+
+  return DuplicateQuestion.find({ userId })
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+}
+
+function isUserProfileQuery(query) {
+  const normalized = normalizeQueryText(query);
+
+  return (
+    /\b(who am i|my profile|my account|my name|what is my name|my email|what is my email)\b/.test(normalized) ||
+    /\b(do you know me|tell me about me)\b/.test(normalized)
+  );
+}
+
+function isEscalationHistoryQuery(query) {
+  const normalized = normalizeQueryText(query);
+
+  return (
+    /\b(my|me|mine)\b.*\b(escalated|escalation|unanswered|pending|review)\b/.test(normalized) ||
+    /\b(escalated|unanswered|pending)\b.*\b(questions|queries)\b/.test(normalized)
+  );
+}
+
+function answerUserProfileQuestion(user) {
+  if (!user) {
+    return {
+      answer: "I can only see your profile after you log in.",
+      answerFound: true,
+      memoryEligible: false,
+      confidence: 1,
+      sources: [],
+    };
+  }
+
+  return {
+    answer: `You are logged in as ${user.name} (${user.email}).`,
+    answerFound: true,
+    memoryEligible: false,
+    confidence: 1,
+    sources: [],
+  };
+}
+
+async function answerEscalationHistoryQuestion(user) {
+  const escalatedQuestions = await getRecentEscalatedQuestions(user);
+
+  if (escalatedQuestions.length === 0) {
+    return {
+      answer: "You do not have any escalated questions yet.",
+      answerFound: true,
+      memoryEligible: false,
+      confidence: 1,
+      sources: [],
+    };
+  }
+
+  const items = escalatedQuestions
+    .map((question, index) => `${index + 1}. ${question.question}`)
+    .join("\n");
+
+  return {
+    answer: `Here are your recent escalated questions:\n${items}`,
+    answerFound: true,
+    memoryEligible: false,
+    confidence: 1,
+    sources: [],
+  };
+}
+
 function normalizeValidationLabel(label) {
   const normalized = String(label || "")
     .toLowerCase()
@@ -259,28 +363,50 @@ function trackQuestionInBackground(query) {
   });
 }
 
-function escalateUnansweredInBackground(query, result) {
-  if (result.answerFound !== false) {
-    return;
-  }
-
-  const topSource = result.sources?.[0];
-  const similarityScore = topSource?.score || result.confidence || 0;
-
-  DuplicateQuestion.create({
+async function createEscalatedQuestion(query, user, source) {
+  await DuplicateQuestion.create({
+    userId: userIdOf(user),
     question: query,
-    matchedQuestion: topSource?.question,
-    similarityScore,
-    status: similarityScore >= 0.75 ? 'duplicate' : 'new',
-  }).catch((error) => {
-    console.error('Failed to escalate unanswered question:', error);
+    matchedQuestion: source?.question,
+    similarityScore: source?.score || 0,
+    status: (source?.score || 0) >= 0.75 ? 'duplicate' : 'new',
   });
 }
 
+export async function escalateQuestionForReview(query, user) {
+  const normalizedQuery = String(query || "").trim();
+  if (!normalizedQuery) {
+    const error = new Error("Question is required.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const results = await retrieveContext(normalizedQuery);
+  await createEscalatedQuestion(normalizedQuery, user, results[0] ? toSource(results[0]) : null);
+
+  return {
+    escalated: true,
+    message: "Query escalated for review",
+  };
+}
+
+function markEscalationEligible(result, query) {
+  if (result.answerFound !== false) {
+    return result;
+  }
+
+  return {
+    ...result,
+    escalationEligible: true,
+    escalationQuery: query,
+    escalationStatus: "pending",
+  };
+}
+
 function returnWithTracking(query, result) {
+  const trackedResult = markEscalationEligible(result, query);
   trackQuestionInBackground(query);
-  escalateUnansweredInBackground(query, result);
-  return result;
+  return trackedResult;
 }
 
 export async function answerQuestion(query, options = {}) {
@@ -293,6 +419,22 @@ export async function answerQuestion(query, options = {}) {
       confidence: 0,
       sources: [],
     };
+  }
+
+  if (isUserProfileQuery(normalizedQuery)) {
+    return returnWithTracking(
+      normalizedQuery,
+      answerUserProfileQuestion(options.user),
+      options
+    );
+  }
+
+  if (isEscalationHistoryQuery(normalizedQuery)) {
+    return returnWithTracking(
+      normalizedQuery,
+      await answerEscalationHistoryQuestion(options.user),
+      options
+    );
   }
 
   const retrievalQuery = buildRetrievalQuery(normalizedQuery, options.memoryQueries || []);
@@ -308,9 +450,12 @@ export async function answerQuestion(query, options = {}) {
       answerFound: false,
       confidence: 0,
       sources: [],
-    });
+    }, options);
   }
   const contexts = results.map(toContext);
+  const escalatedQuestions = await getRecentEscalatedQuestions(options.user, 3);
+  const userContext = buildUserContext(options.user, escalatedQuestions);
+
   if (!answerFound) {
     const validationLabel = normalizeValidationLabel(
       await validateWithOllama({ query: normalizedQuery, contexts })
@@ -324,7 +469,7 @@ export async function answerQuestion(query, options = {}) {
         memoryEligible: true,
         confidence: bestScore,
         sources: results.map(toSource),
-      });
+      }, options);
     }
 
     if (validationLabel === "greeting") {
@@ -334,7 +479,7 @@ export async function answerQuestion(query, options = {}) {
         memoryEligible: false,
         confidence: bestScore,
         sources: results.map(toSource),
-      });
+      }, options);
     }
 
     if (validationLabel === "casual") {
@@ -344,7 +489,7 @@ export async function answerQuestion(query, options = {}) {
         memoryEligible: false,
         confidence: bestScore,
         sources: results.map(toSource),
-      });
+      }, options);
     }
 
     return returnWithTracking(normalizedQuery, {
@@ -354,19 +499,20 @@ export async function answerQuestion(query, options = {}) {
       memoryEligible: false,
       confidence: bestScore,
       sources: results.map(toSource),
-    });
+    }, options);
   }
   const answer = await generateWithOllama({
     query: normalizedQuery,
     contexts,
     bestscore: bestScore,
+    userContext,
   });
 
-return returnWithTracking(normalizedQuery, {
-  answer,
-  answerFound: isFaqAnswer(answer),
-  memoryEligible: isFaqAnswer(answer),
-  confidence: bestScore,
-  sources: results.map(toSource),
-});
+  return returnWithTracking(normalizedQuery, {
+    answer,
+    answerFound: isFaqAnswer(answer),
+    memoryEligible: isFaqAnswer(answer),
+    confidence: bestScore,
+    sources: results.map(toSource),
+  }, options);
 }
