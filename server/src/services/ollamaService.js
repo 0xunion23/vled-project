@@ -32,7 +32,7 @@ export async function generateRawWithOllama({ prompt, signal, options = {} }) {
   return requestOllamaGenerate({ prompt, signal, options });
 }
 
-export async function generateWithOllama({ query, contexts, bestscore, userContext }) {
+export async function generateWithOllama({ query, contexts, bestscore, userContext, conversationContext = [] }) {
   const contextText = contexts
     .map(
       (context, index) =>
@@ -43,17 +43,27 @@ export async function generateWithOllama({ query, contexts, bestscore, userConte
   const profileContext = userContext
     ? `\nAuthenticated user context:\n${userContext}\n`
     : "";
+  const historyText = Array.isArray(conversationContext) && conversationContext.length > 0
+    ? conversationContext
+      .map((memoryQuery, index) => `${index + 1}. ${memoryQuery}`)
+      .join('\n')
+    : "";
+  const historyContext = historyText
+    ? `\nConversation history for reference resolution only:\n${historyText}\n`
+    : "";
 
   const prompt = `You are a FAQ support chatbot.
 Use the retrieved FAQ context for internship answers. You may use authenticated user context only for personalization or when the user asks about their own profile/escalated questions.
+You may use conversation history only to resolve references in the current question, such as pronouns or follow-ups like "that", "it", or "what about exams".
 
 Choose exactly one response:
 1. If the context answers the question, give only the answer in 1-2 concise sentences.
 2. If the context does not answer the question, say exactly: "I do not have enough information in the FAQ knowledge base to answer that."
 
-Never combine an answer with the fallback sentence. Do not add information that is not in the retrieved FAQ context or authenticated user context.
+Never combine an answer with the fallback sentence. Do not use conversation history as factual evidence. Do not add information that is not in the retrieved FAQ context or authenticated user context.
 Retrieval confidence: ${bestscore}
 ${profileContext}
+${historyContext}
 
 Retrieved context:
 ${contextText}

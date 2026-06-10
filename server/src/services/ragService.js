@@ -506,6 +506,7 @@ export async function answerQuestion(query, options = {}) {
     contexts,
     bestscore: bestScore,
     userContext,
+    conversationContext: options.memoryQueries || [],
   });
 
   return returnWithTracking(normalizedQuery, {
