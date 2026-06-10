@@ -124,6 +124,42 @@ function getQueryWordCount(query) {
     .filter(Boolean).length;
 }
 
+function normalizeQueryText(query) {
+  return String(query || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isObviousGreeting(query) {
+  const normalized = normalizeQueryText(query);
+  const greetings = new Set([
+    "hi",
+    "hello",
+    "hey",
+    "hlo",
+    "good morning",
+    "good afternoon",
+    "good evening",
+    "how are you",
+  ]);
+
+  return greetings.has(normalized);
+}
+
+function isGibberishLike(query) {
+  const normalized = normalizeQueryText(query).replace(/\s/g, "");
+  if (!normalized) return true;
+  if (normalized.length < 4) return false;
+
+  const vowelCount = (normalized.match(/[aeiou]/g) || []).length;
+  const hasDigit = /\d/.test(normalized);
+  const hasLongConsonantRun = /[bcdfghjklmnpqrstvwxyz]{6,}/.test(normalized);
+
+  return !hasDigit && (vowelCount === 0 || hasLongConsonantRun);
+}
+
 function getMinConfidenceForQuery(query) {
   const wordCount = getQueryWordCount(query);
   const baseConfidence = env.minConfidence;
@@ -160,6 +196,37 @@ function normalizeValidationLabel(label) {
   return "invalid";
 }
 
+function isFollowUpLikeQuery(query) {
+  const normalized = normalizeQueryText(query);
+  const wordCount = getQueryWordCount(normalized);
+
+  if (!normalized || isObviousGreeting(normalized) || isGibberishLike(normalized)) {
+    return false;
+  }
+
+  const startsLikeFollowUp =
+    /^(what about|how about|and|also|then|so|but|can i|could i|what if|is it|does it|do i|will i)\b/.test(normalized);
+  const hasVagueReference = /\b(that|this|it|there|same)\b/.test(normalized);
+  const isShortTopicFollowUp =
+    wordCount <= 3 &&
+    /\b(later|earlier|exam|exams|duration|deadline|start|certificate|team|stipend|noc)\b/.test(normalized);
+
+  return wordCount <= 7 && (startsLikeFollowUp || hasVagueReference || isShortTopicFollowUp);
+}
+
+function buildRetrievalQuery(query, memoryQueries = []) {
+  const usableMemory = memoryQueries
+    .map((memoryQuery) => String(memoryQuery || "").trim())
+    .filter(Boolean)
+    .slice(-3);
+
+  if (usableMemory.length === 0 || !isFollowUpLikeQuery(query)) {
+    return query;
+  }
+
+  return [...usableMemory, query].join(" ");
+}
+
 function trackQuestionInBackground(query) {
   trackQuestion(query).catch((error) => {
     console.error('Failed to track most asked question:', error);
@@ -190,7 +257,7 @@ function returnWithTracking(query, result) {
   return result;
 }
 
-export async function answerQuestion(query) {
+export async function answerQuestion(query, options = {}) {
   const normalizedQuery = String(query || "").trim();
 
   if (!normalizedQuery) {
@@ -202,9 +269,10 @@ export async function answerQuestion(query) {
     };
   }
 
-  const results = await retrieveContext(normalizedQuery);
+  const retrievalQuery = buildRetrievalQuery(normalizedQuery, options.memoryQueries || []);
+  const results = await retrieveContext(retrievalQuery);
   const bestScore = results[0]?.score || 0;
-  const minConfidence = getMinConfidenceForQuery(normalizedQuery);
+  const minConfidence = getMinConfidenceForQuery(retrievalQuery);
   const answerFound = bestScore >= minConfidence;
 
   if (results.length === 0) {
@@ -227,6 +295,7 @@ export async function answerQuestion(query) {
         answer:
           "I don't have enough information in the FAQ knowledge base to answer that.",
         answerFound: false,
+        memoryEligible: true,
         confidence: bestScore,
         sources: results.map(toSource),
       });
@@ -236,6 +305,7 @@ export async function answerQuestion(query) {
       return returnWithTracking(normalizedQuery, {
         answer: "Hello, how can I help you today?",
         answerFound: true,
+        memoryEligible: false,
         confidence: bestScore,
         sources: results.map(toSource),
       });
@@ -245,6 +315,7 @@ export async function answerQuestion(query) {
       answer:
         "That doesn't seem to be an internship-related question. Feel free to ask me anything about the Vicharanashala internship.",
       answerFound: true,
+      memoryEligible: false,
       confidence: bestScore,
       sources: results.map(toSource),
     });
@@ -258,6 +329,7 @@ export async function answerQuestion(query) {
 return returnWithTracking(normalizedQuery, {
   answer,
   answerFound: isFaqAnswer(answer),
+  memoryEligible: isFaqAnswer(answer),
   confidence: bestScore,
   sources: results.map(toSource),
 });

@@ -26,6 +26,24 @@ const TONE_OPTIONS = [
 ];
 const getTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+function makeGreetingMessage() {
+  return {
+    id: crypto.randomUUID(),
+    role: 'assistant',
+    text: getDynamicGreeting(),
+    answerFound: true,
+    confidence: 1,
+    sources: [],
+    timestamp: getTime()
+  };
+}
+
+function formatHistoryTime(createdAt) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return getTime();
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 const getDynamicGreeting = () => {
   const hour = new Date().getHours();
   let greeting = "Hi there";
@@ -341,22 +359,58 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState('');
 
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem('chat_memory');
-    return saved ? JSON.parse(saved) : [{
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: getDynamicGreeting(),
-      answerFound: true,
-      confidence: 1,
-      sources: [],
-      timestamp: getTime()
-    }];
-  });
+  const [messages, setMessages] = useState(() => [makeGreetingMessage()]);
 
   useEffect(() => {
-    localStorage.setItem('chat_memory', JSON.stringify(messages));
-  }, [messages]);
+    if (!authToken) return;
+
+    let cancelled = false;
+
+    async function loadConversationHistory() {
+      try {
+        const response = await fetch(`${API_URL}/api/chat/history`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        });
+
+        if (response.status === 401) {
+          onLogout();
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to load chat history');
+        }
+
+        const data = await response.json();
+        const historyMessages = Array.isArray(data.messages) ? data.messages : [];
+
+        if (cancelled) return;
+
+        setMessages([
+          makeGreetingMessage(),
+          ...historyMessages.map((message) => ({
+            id: message.id || crypto.randomUUID(),
+            role: message.role,
+            text: message.text,
+            answerFound: message.answerFound,
+            confidence: message.confidence,
+            sources: message.sources || [],
+            timestamp: formatHistoryTime(message.createdAt)
+          }))
+        ]);
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    }
+
+    loadConversationHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, onLogout]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -468,16 +522,30 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
     fetchSecurityLogs();
   }
 
-  function handleRefresh() {
-    setMessages([{
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        text: getDynamicGreeting(),
-        answerFound: true,
-        confidence: 1,
-        sources: [],
-        timestamp: getTime()
-      }]);
+  async function handleRefresh() {
+    try {
+      const response = await fetch(`${API_URL}/api/chat/reset`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+
+      if (response.status === 401) {
+        onLogout();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to reset chat memory');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to reset chat memory. Please check the server and try again.');
+      return;
+    }
+
+    setMessages([makeGreetingMessage()]);
     setInput('');
     setIsLoading(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
