@@ -149,6 +149,17 @@ function isFaqAnswer(answer) {
   return !isNotEnoughInformationAnswer(answer);
 }
 
+function normalizeValidationLabel(label) {
+  const normalized = String(label || "")
+    .toLowerCase()
+    .replace(/[^a-z]/g, "")
+    .trim();
+
+  if (normalized === "valid") return "valid";
+  if (normalized === "greeting") return "greeting";
+  return "invalid";
+}
+
 function trackQuestionInBackground(query) {
   trackQuestion(query).catch((error) => {
     console.error('Failed to track most asked question:', error);
@@ -207,8 +218,11 @@ export async function answerQuestion(query) {
   }
   const contexts = results.map(toContext);
   if (!answerFound) {
-    const answer = await validateWithOllama({ query: normalizedQuery, contexts });
-    if (answer.toLowerCase() === "valid") {
+    const validationLabel = normalizeValidationLabel(
+      await validateWithOllama({ query: normalizedQuery, contexts })
+    );
+
+    if (validationLabel === "valid") {
       return returnWithTracking(normalizedQuery, {
         answer:
           "I don't have enough information in the FAQ knowledge base to answer that.",
@@ -216,14 +230,24 @@ export async function answerQuestion(query) {
         confidence: bestScore,
         sources: results.map(toSource),
       });
-    } else {
+    }
+
+    if (validationLabel === "greeting") {
       return returnWithTracking(normalizedQuery, {
-        answer,
+        answer: "Hello, how can I help you today?",
         answerFound: true,
         confidence: bestScore,
         sources: results.map(toSource),
       });
     }
+
+    return returnWithTracking(normalizedQuery, {
+      answer:
+        "That doesn't seem to be an internship-related question. Feel free to ask me anything about the Vicharanashala internship.",
+      answerFound: true,
+      confidence: bestScore,
+      sources: results.map(toSource),
+    });
   }
   const answer = await generateWithOllama({
     query: normalizedQuery,

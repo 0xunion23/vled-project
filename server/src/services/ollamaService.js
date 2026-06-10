@@ -57,10 +57,13 @@ Answer:`;
 }
 
 export async function validateWithOllama({ query, contexts }) { 
-  const prompt = `You are a validator bot.
-    valid query example: specific questions slightly related to context but couldnt be answered by context. 
-If query is valid then return "valid"
-If query is invalid then say, "Hello,How can i help you today ?".`;
+  const prompt = `You are a validator bot for the Vicharanashala internship FAQ chatbot.
+Classify the user question into exactly one label:
+- "valid": a genuine internship-related question that is not answered well enough by the retrieved FAQ context.
+- "greeting": a greeting or casual opener such as hi, hello, hey, good morning, or how are you.
+- "invalid": gibberish, random text, or anything not related to the Vicharanashala internship.
+
+Return only one word: valid, greeting, or invalid.`;
 
   return requestOllamaGenerate({
     prompt: `${prompt}\n\nUser question: ${query}\n\nAnswer:`,
