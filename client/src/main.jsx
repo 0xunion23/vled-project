@@ -26,6 +26,24 @@ const TONE_OPTIONS = [
 ];
 const getTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+function makeGreetingMessage() {
+  return {
+    id: crypto.randomUUID(),
+    role: 'assistant',
+    text: getDynamicGreeting(),
+    answerFound: true,
+    confidence: 1,
+    sources: [],
+    timestamp: getTime()
+  };
+}
+
+function formatHistoryTime(createdAt) {
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return getTime();
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 const getDynamicGreeting = () => {
   const hour = new Date().getHours();
   let greeting = "Hi there";
@@ -159,7 +177,7 @@ function AuthView({ onAuthenticated }) {
   );
 }
 
-function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
+function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt, onEscalate }) {
   const isUser = message.role === 'user';
   const [vote, setVote] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -190,10 +208,21 @@ function Message({ message, isLatestBotMessage, onRegenerate, onEditPrompt }) {
           <span style={{ fontSize: '11px', color: '#94a3b8' }}>{message.timestamp}</span>
         </div>
 
-        {!isUser && message.answerFound === false && (
-          <div className="escalationNotice">
-            Query escalated for review
-          </div>
+        {!isUser && message.escalationEligible && (
+          message.escalationStatus === 'escalated' ? (
+            <div className="escalationNotice">
+              Query escalated for review
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="escalationAction"
+              disabled={message.escalationStatus === 'submitting'}
+              onClick={() => onEscalate?.(message.id, message.escalationQuery)}
+            >
+              {message.escalationStatus === 'submitting' ? 'Escalating...' : 'Escalate query'}
+            </button>
+          )
         )}
         
         {isUser && isEditing ? (
@@ -341,22 +370,61 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
   const [securityLoading, setSecurityLoading] = useState(false);
   const [securityError, setSecurityError] = useState('');
 
-  const [messages, setMessages] = useState(() => {
-    const saved = localStorage.getItem('chat_memory');
-    return saved ? JSON.parse(saved) : [{
-      id: crypto.randomUUID(),
-      role: 'assistant',
-      text: getDynamicGreeting(),
-      answerFound: true,
-      confidence: 1,
-      sources: [],
-      timestamp: getTime()
-    }];
-  });
+  const [messages, setMessages] = useState(() => [makeGreetingMessage()]);
 
   useEffect(() => {
-    localStorage.setItem('chat_memory', JSON.stringify(messages));
-  }, [messages]);
+    if (!authToken) return;
+
+    let cancelled = false;
+
+    async function loadConversationHistory() {
+      try {
+        const response = await fetch(`${API_URL}/api/chat/history`, {
+          headers: {
+            Authorization: `Bearer ${authToken}`
+          }
+        });
+
+        if (response.status === 401) {
+          onLogout();
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error('Failed to load chat history');
+        }
+
+        const data = await response.json();
+        const historyMessages = Array.isArray(data.messages) ? data.messages : [];
+
+        if (cancelled) return;
+
+        setMessages([
+          makeGreetingMessage(),
+          ...historyMessages.map((message) => ({
+            id: message.id || crypto.randomUUID(),
+            role: message.role,
+            text: message.text,
+            answerFound: message.answerFound,
+            confidence: message.confidence,
+            sources: message.sources || [],
+            escalationEligible: message.escalationEligible === true,
+            escalationStatus: message.escalationStatus || null,
+            escalationQuery: message.escalationQuery || '',
+            timestamp: formatHistoryTime(message.createdAt)
+          }))
+        ]);
+      } catch (error) {
+        console.error('Failed to load chat history:', error);
+      }
+    }
+
+    loadConversationHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, onLogout]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -468,16 +536,30 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
     fetchSecurityLogs();
   }
 
-  function handleRefresh() {
-    setMessages([{
-        id: crypto.randomUUID(),
-        role: 'assistant',
-        text: getDynamicGreeting(),
-        answerFound: true,
-        confidence: 1,
-        sources: [],
-        timestamp: getTime()
-      }]);
+  async function handleRefresh() {
+    try {
+      const response = await fetch(`${API_URL}/api/chat/reset`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${authToken}`
+        }
+      });
+
+      if (response.status === 401) {
+        onLogout();
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to reset chat memory');
+      }
+    } catch (error) {
+      console.error(error);
+      alert('Failed to reset chat memory. Please check the server and try again.');
+      return;
+    }
+
+    setMessages([makeGreetingMessage()]);
     setInput('');
     setIsLoading(false);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -550,6 +632,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          escalationEligible: data.escalationEligible === true,
+          escalationStatus: data.escalationStatus || null,
+          escalationQuery: data.escalationQuery || newText,
           timestamp: getTime()
         }
       ]);
@@ -614,6 +699,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          escalationEligible: data.escalationEligible === true,
+          escalationStatus: data.escalationStatus || null,
+          escalationQuery: data.escalationQuery || lastUserText,
           timestamp: getTime()
         }
       ]);
@@ -634,6 +722,53 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleEscalateMessage(messageId, escalationQuery) {
+    const query = String(escalationQuery || '').trim();
+    if (!query || isLoading) return;
+
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === messageId
+          ? { ...message, escalationStatus: 'submitting' }
+          : message
+      )
+    );
+
+    try {
+      const response = await fetch(`${API_URL}/api/chat/escalate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ message: query })
+      });
+
+      if (response.status === 401) {
+        onLogout();
+        throw new Error('Session expired');
+      }
+      if (!response.ok) throw new Error('Escalation failed');
+
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? { ...message, escalationEligible: true, escalationStatus: 'escalated' }
+            : message
+        )
+      );
+    } catch (_error) {
+      setMessages((current) =>
+        current.map((message) =>
+          message.id === messageId
+            ? { ...message, escalationEligible: true, escalationStatus: 'pending' }
+            : message
+        )
+      );
+      alert('Failed to escalate the query. Please check the server and try again.');
     }
   }
 
@@ -695,6 +830,9 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
           answerFound: data.answerFound,
           confidence: data.confidence,
           sources: data.sources,
+          escalationEligible: data.escalationEligible === true,
+          escalationStatus: data.escalationStatus || null,
+          escalationQuery: data.escalationQuery || text,
           timestamp: getTime()
         }
       ]);
@@ -799,7 +937,8 @@ function DefaultChat({ onCreateOrg, authToken, authUser, onLogout }) {
                 message={message} 
                 isLatestBotMessage={isLatestBotMessage}
                 onRegenerate={handleRegenerate}
-                onEditPrompt={handleEditPrompt} 
+                onEditPrompt={handleEditPrompt}
+                onEscalate={handleEscalateMessage}
               />
             );
           })}

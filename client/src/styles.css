@@ -551,6 +551,28 @@ button {
   font-weight: 850;
 }
 
+.escalationAction {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 30px;
+  margin: -2px 0 12px;
+  padding: 0 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  font-size: 0.84rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.escalationAction:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .loadingBubble {
   display: inline-flex;
   align-items: center;
@@ -1088,6 +1110,12 @@ button {
   color: #fde68a;
   background: rgba(113, 63, 18, 0.34);
   border-color: rgba(245, 158, 11, 0.42);
+}
+
+[data-theme="dark"] .escalationAction {
+  color: #bfdbfe;
+  background: rgba(30, 64, 175, 0.28);
+  border-color: rgba(96, 165, 250, 0.38);
 }
 
 [data-theme="dark"] .mostAskedSection {
